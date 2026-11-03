@@ -1187,11 +1187,7 @@ Las operaciones de escritura en la base de datos están <b>bloqueadas</b> por se
 <div id="tab-destacados" class="admin-view">
 <div class="dashboard-card">
 <h4>⭐ Productos destacados</h4>
-<p style="font-size:12.5px;color:#64748b;margin:-6px 0 14px;">Marca productos como destacados para incluirlos en esta colección. El siguiente control solo muestra u oculta la sección de inicio; no desmarca ni elimina productos.</p>
-<div class="estado-box" style="margin-bottom:14px;">
-<div class="estado-txt"><b>Mostrar sección Destacados en la tienda</b><small>OFF oculta la sección de inicio, pero conserva todos los productos destacados y los enlaces de banners.</small></div>
-<div class="switch-col"><label class="switch"><input type="checkbox" id="featuredSectionToggle" onchange="cambiarVisibilidadSeccionDestacados(this.checked)"><span class="switch-slider"></span></label><span class="sw-lbl" id="featuredSectionState">VISIBLE</span></div>
-</div>
+<p style="font-size:12.5px;color:#64748b;margin:-6px 0 14px;">Activa el interruptor para agregar productos a la colección <b>Destacados</b>. Aparecen en la sección "Destacados" de la tienda y puedes enlazarlos desde un banner eligiendo <b>"Destacados"</b> como colección destino.</p>
 <div id="destResumen" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;"></div>
 <button class="sync-btn secondary" style="width:auto;padding:10px 16px;margin:0 0 14px;" onclick="verColeccionDestacados()">️ Ver colección en la tienda</button>
 <div id="destacadosList"></div>
@@ -1355,10 +1351,13 @@ Se detectó una API key de ImgBB visible en el código fuente. Recomendamos:
 </div>
 <div id="tab-categorias" class="admin-view">
 <div class="dashboard-card">
-<h4>🏷️ Categorías de DIVANI</h4>
-<p style="font-size:12.5px;color:#64748b;margin:-6px 0 14px;line-height:1.6;">Estas categorías están definidas directamente en el código para evitar descargarlas desde Firebase. Para agregar, renombrar o quitar una categoría, se debe editar la lista <b>CATEGORIAS_FIJAS</b> y publicar una nueva versión de la página.</p>
-<div id="categoriasGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;"></div>
+<h4>️ Nueva categoría</h4>
+<div style="display:flex;gap:10px;">
+<input type="text" id="nuevaCategoriaInput" placeholder="Ej: Labiales" style="flex:1;padding:11px;border:1.5px solid var(--gray-border);border-radius:12px;">
+<button class="sync-btn primary" style="width:auto;padding:11px 20px;margin:0;" onclick="agregarCategoria()">✨ Crear</button>
 </div>
+</div>
+<div class="dashboard-card"><h4>🏷️ Categorías existentes</h4><p style="font-size:12.5px;color:#64748b;margin:-6px 0 14px;">Solo puedes eliminar categorías sin productos.</p><div id="categoriasGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;"></div></div>
 </div>
 <div id="tab-personaliza" class="admin-view">
 <div class="dashboard-card">
@@ -1663,6 +1662,81 @@ FETCH_TIMEOUT: 8000,
 // 🛡️ MODO DE SEGURIDAD GLOBAL
 SECURITY_MODE: 'READ_ONLY'  // 'READ_ONLY' | 'READ_WRITE_STAGING' | 'READ_WRITE_PROD'
 };
+// ============================================================
+// NORMALIZACIÓN DEFENSIVA DE DATOS FIREBASE
+// No escribe ni modifica Firebase: limpia una copia en memoria.
+// Admite arrays y objetos numéricos (Firebase puede convertir
+// arrays con índices eliminados en objetos).
+// ============================================================
+function convertirColeccionFirebase(valor, etiqueta) {
+  if (Array.isArray(valor)) return valor;
+  if (valor && typeof valor === 'object') {
+    const claves = Object.keys(valor);
+    const sonIndices = claves.length > 0 && claves.every(k => /^\d+$/.test(k));
+    if (sonIndices) claves.sort((a,b) => Number(a) - Number(b));
+    console.warn(`[DIVANI] La colección "${etiqueta}" llegó como objeto; se convirtió a lista.`);
+    return claves.map(k => valor[k]);
+  }
+  return [];
+}
+function normalizarListaProductos(lista, origen='datos') {
+  const entrada = convertirColeccionFirebase(lista, 'productos');
+  let descartados = 0;
+  const salida = [];
+  for (let i = 0; i < entrada.length; i++) {
+    const original = entrada[i];
+    if (!original || typeof original !== 'object' || Array.isArray(original)) {
+      descartados++;
+      continue;
+    }
+    const p = { ...original };
+    p.id = (typeof p.id === 'string' || typeof p.id === 'number') ? String(p.id) : '';
+    p.nombre = typeof p.nombre === 'string' ? p.nombre.trim() : '';
+    p.categoria = typeof p.categoria === 'string' && p.categoria.trim() ? p.categoria.trim() : 'General';
+    p.precio = (typeof p.precio === 'number' || typeof p.precio === 'string') ? p.precio : 0;
+    p.descuento = Number.isFinite(Number(p.descuento)) ? Math.max(0, Math.min(100, Number(p.descuento))) : 0;
+    p.promo = typeof p.promo === 'string' ? p.promo : '';
+    p.visible = p.visible !== false;
+    p.destacado = p.destacado === true;
+    p.imagenes = Array.isArray(p.imagenes)
+      ? p.imagenes.filter(url => typeof url === 'string' && url.trim()).map(url => url.trim())
+      : (typeof p.img === 'string' && p.img.trim() ? [p.img.trim()] : []);
+    p.tonos = Array.isArray(p.tonos)
+      ? p.tonos.filter(tono => tono && typeof tono === 'object' && !Array.isArray(tono))
+      : [];
+    if (typeof p.img !== 'string') p.img = '';
+    salida.push(p);
+  }
+  if (descartados) {
+    console.warn(`[DIVANI] ${origen}: se omitieron ${descartados} registro(s) nulo(s) o inválido(s) de productos. No se borraron de Firebase.`);
+  }
+  return salida;
+}
+function normalizarCatalogoFirebase(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('La ruta /divani debe contener un objeto de catálogo.');
+  }
+  if (!Object.prototype.hasOwnProperty.call(data, 'productos')) {
+    throw new Error('No se encontró la colección "productos" dentro de /divani.');
+  }
+  const limpio = { ...data };
+  limpio.productos = normalizarListaProductos(data.productos, 'Firebase');
+  if (data.categorias !== undefined) {
+    limpio.categorias = convertirColeccionFirebase(data.categorias, 'categorias')
+      .filter(c => typeof c === 'string' && c.trim()).map(c => c.trim());
+  }
+  if (data.banners !== undefined) {
+    limpio.banners = convertirColeccionFirebase(data.banners, 'banners')
+      .filter(b => b && typeof b === 'object' && !Array.isArray(b));
+  }
+  if (data.tiendaConfig && (typeof data.tiendaConfig !== 'object' || Array.isArray(data.tiendaConfig))) {
+    limpio.tiendaConfig = {};
+  }
+  if (data.personalizacion && (typeof data.personalizacion !== 'object' || Array.isArray(data.personalizacion))) {
+    limpio.personalizacion = {};
+  }
+  return limpio;
+}
 // ============================
 // 2. CAPA DE DATOS BLINDADA (SecureDataLayer)
 // ============================
@@ -1684,15 +1758,17 @@ console.log(`[SecureDataLayer] ${action}:`, detail, entry.allowed ? '✅' : '⛔
 }
 // 🛡️ Validación de esquema (evita que datos corruptos rompan la tienda)
 validateSchema(data) {
-if (!data || typeof data !== 'object') {
-throw new Error("Datos inválidos o nulos recibidos de la base de datos");
+if (!data || typeof data !== 'object' || Array.isArray(data)) {
+throw new Error("Datos inválidos: /divani debe ser un objeto de catálogo");
 }
-// Los nodos esperados bajo /divani son: productos, categorias, banners, personalizacion, tiendaConfig, actualizado
-const requiredArrays = ['productos', 'categorias'];
-for (const key of requiredArrays) {
-if (data[key] !== undefined && !Array.isArray(data[key])) {
-throw new Error(`Esquema inválido: '${key}' debe ser un array`);
+if (!Array.isArray(data.productos)) {
+throw new Error("Esquema inválido: 'productos' no es una lista ni una colección válida");
 }
+if (data.categorias !== undefined && !Array.isArray(data.categorias)) {
+throw new Error("Esquema inválido: 'categorias' no es una lista válida");
+}
+if (data.banners !== undefined && !Array.isArray(data.banners)) {
+throw new Error("Esquema inválido: 'banners' no es una lista válida");
 }
 return true;
 }
@@ -1790,30 +1866,7 @@ imagenes:[IMG.shampoo], destacado:true, promo:'Nueva línea Repair Rose: keratin
 { id:'8', nombre:'Set Brochas Divani · Edición Rosé', categoria:'Accesorios', precio:48000, visible:true, imagenes:[IMG.brochas] }
 ];
 const DEFAULT_IDS=new Set(productos.map(p=>p.id));
-// Categorías estáticas tomadas de categorias-respaldo.json.
-// Para agregar o quitar una categoría, edita únicamente esta lista en el código.
-const CATEGORIAS_FIJAS = [
-'Og','Trendy','Ani-k','Bloomshell','Atenea','Prosa','La receta','Kaba','Milagros',
-'Purpure','Montoc','Beauty glazed','Bioaqua','Clickhair','DÂ´luchi','Dolce bella',
-'Elaya','Girly','Henkel','La colors','Lula','Melu','Majykal beauty',
-'Michelle arango skin','Myk cosmetics','Naba','Origen botanico','Pocion',
-'Raquelle cosmetics','Rubi rose','Sagui'
-];
-let categorias = [...CATEGORIAS_FIJAS];
-const FEATURED_SECTION_KEY = 'divani_featured_section_enabled_v1';
-let featuredSectionEnabled = true;
-try {
-  const savedFeaturedSection = localStorage.getItem(FEATURED_SECTION_KEY);
-  if (savedFeaturedSection === '0') featuredSectionEnabled = false;
-} catch(e) {}
-function cambiarVisibilidadSeccionDestacados(enabled){
-  featuredSectionEnabled = !!enabled;
-  try { localStorage.setItem(FEATURED_SECTION_KEY, featuredSectionEnabled ? '1' : '0'); } catch(e) {}
-  renderHome();
-  renderDestacadosAdmin();
-  showToast(featuredSectionEnabled ? 'La sección Destacados está visible en la tienda.' : 'La sección Destacados está oculta. Los productos siguen marcados como destacados.','success');
-}
-
+let categorias = ['Cejas','Labios','Ojos','Skincare','Capilar','Accesorios','Rostro','Brochas'];
 let banners = [
 { id:'b1', etiqueta:'Nueva colección', titulo:'Descubre tus nuevos favoritos', sub:'Productos seleccionados para complementar tu estilo y rutina.', promo:'NUEVO', textoBoton:'Comprar ahora', img:IMG.hero, tema:1, cat:'Todos', usarIdentidad:true, imgFit:'cover', imgPos:'center', duracion:3 },
 { id:'b2', etiqueta:'Selección especial', titulo:'Los favoritos de la casa', sub:'Marca productos favoritos y aparecerán aquí.', promo:'TOP', textoBoton:'Ver destacados', img:IMG.swatches, tema:2, cat:'Destacados', usarIdentidad:true, imgFit:'cover', imgPos:'center', duracion:3 }
@@ -1903,61 +1956,21 @@ const CACHE_KEY = 'divani_cache_v1';
 const SYNC_TS_KEY = 'divani_last_sync_ts';
 const CACHE_FRESHNESS_MS = 6 * 60 * 60 * 1000;
 const ETAG_KEY = 'divani_etag_v1';
-const DIVANI_CACHE_DB = 'divani_catalog_cache';
-const DIVANI_CACHE_STORE = 'catalogo';
-function abrirDBCache(){
-  return new Promise((resolve,reject)=>{
-    if(!('indexedDB' in window)){ reject(new Error('IndexedDB no disponible')); return; }
-    const request=indexedDB.open(DIVANI_CACHE_DB,1);
-    request.onupgradeneeded=()=>{
-      const db=request.result;
-      if(!db.objectStoreNames.contains(DIVANI_CACHE_STORE)) db.createObjectStore(DIVANI_CACHE_STORE,{keyPath:'id'});
-    };
-    request.onsuccess=()=>resolve(request.result);
-    request.onerror=()=>reject(request.error||new Error('No se pudo abrir IndexedDB'));
-  });
-}
-async function guardarCacheIndexedDB(data){
-  let db;
-  try{
-    db=await abrirDBCache();
-    await new Promise((resolve,reject)=>{
-      const tx=db.transaction(DIVANI_CACHE_STORE,'readwrite');
-      tx.objectStore(DIVANI_CACHE_STORE).put({id:'principal',data});
-      tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error||new Error('Error guardando caché'));
-      tx.onabort=()=>reject(tx.error||new Error('Guardado cancelado'));
-    });
-  }catch(e){ console.warn('[DIVANI] No se pudo guardar caché IndexedDB:',e.message); }
-  finally{ if(db) db.close(); }
-}
-async function leerCacheIndexedDB(){
-  let db;
-  try{
-    db=await abrirDBCache();
-    return await new Promise((resolve,reject)=>{
-      const tx=db.transaction(DIVANI_CACHE_STORE,'readonly');
-      const req=tx.objectStore(DIVANI_CACHE_STORE).get('principal');
-      req.onsuccess=()=>resolve(req.result?.data||null);
-      req.onerror=()=>reject(req.error||new Error('Error leyendo caché'));
-    });
-  }catch(e){ console.warn('[DIVANI] No se pudo leer caché IndexedDB:',e.message); return null; }
-  finally{ if(db) db.close(); }
-}
 function loadCache(){
 try{ const raw = localStorage.getItem(CACHE_KEY); if(!raw) return null; return JSON.parse(raw); }
 catch(e){ return null; }
 }
 function saveCache(){
+try{
 const data = { productos, categorias, banners, tiendaConfig, personalizacion: pers, ts: Date.now() };
-try{ localStorage.setItem(CACHE_KEY, JSON.stringify(data)); }catch(e){ console.warn('[DIVANI] Caché localStorage no disponible; se conserva IndexedDB.'); }
-// IndexedDB guarda el catálogo de forma asíncrona y no bloquea la interfaz.
-void guardarCacheIndexedDB(data);
+localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+}catch(e){}
 }
 function applyCachedData(cache){
 if(!cache) return false;
 let applied = false;
-if(Array.isArray(cache.productos) && cache.productos.length){ productos = cache.productos; applied = true; }
-// Las categorías se mantienen en el código; no se reemplazan desde caché.
+if(Array.isArray(cache.productos) && cache.productos.length){ productos = normalizarListaProductos(cache.productos, 'caché local'); applied = true; }
+if(Array.isArray(cache.categorias) && cache.categorias.length){ categorias = cache.categorias; }
 if(Array.isArray(cache.banners) && cache.banners.length){ banners = cache.banners; }
 if(cache.tiendaConfig){ tiendaConfig = Object.assign(tiendaConfig, cache.tiendaConfig); }
 if(cache.personalizacion){
@@ -2665,7 +2678,7 @@ if(!silent) showToast('⚠️ Configura la URL de la base de datos en ☁️ Nub
 return {ok:false, error:'Sin URL de base de datos'};
 }
 // 🛡️ INTERCEPTOR DE SEGURIDAD: pasar por SecureDataLayer
-const payload={ productos, categorias, banners, tiendaConfig, personalizacion:pers, actualizado:new Date().toISOString() };
+const payload={ productos: normalizarListaProductos(productos, 'preparación de guardado'), categorias: Array.isArray(categorias)?categorias.filter(c=>typeof c==='string'):[], banners: Array.isArray(banners)?banners.filter(b=>b&&typeof b==='object'):[], tiendaConfig, personalizacion:pers, actualizado:new Date().toISOString() };
 const secResult = await secureDB.write(payload, ep);
 if (secResult.blocked) {
 if (!silent) {
@@ -2706,10 +2719,15 @@ const genAlInicio = _mutGeneration;
 _cloudFetchPromise = (async () => {
 try{
 const controller = new AbortController();
-const timeoutId = setTimeout(() => controller.abort(), CLOUD_CONFIG.FETCH_TIMEOUT);
-// GET simple de solo lectura; evitamos encabezados ETag personalizados innecesarios.
-const res = await fetch(ep, { method: 'GET', cache: 'default', signal: controller.signal });
-clearTimeout(timeoutId);
+let timeoutId = setTimeout(() => controller.abort(), CLOUD_CONFIG.FETCH_TIMEOUT);
+let res;
+try {
+  // GET de solo lectura. El timeout también se limpia si fetch falla.
+  res = await fetch(ep, { method: 'GET', cache: 'no-store', signal: controller.signal });
+} finally {
+  clearTimeout(timeoutId);
+  timeoutId = null;
+}
 if (_mutGeneration !== genAlInicio) {
 console.log('[DIVANI] Descarga descartada: mutación local durante el fetch');
 return null;
@@ -2728,9 +2746,12 @@ const newEtag = res.headers.get('ETag');
 if (newEtag) {
 try { localStorage.setItem(ETAG_KEY, newEtag); } catch(e){}
 }
-const data = await res.json();
-// 🛡️ VALIDACIÓN DE ESQUEMA al recibir datos
+const rawData = await res.json();
+// 🛡️ Normalización + validación: nulls, campos incompletos y colecciones
+// convertidas a objetos por Firebase no deben romper el catálogo.
+let data;
 try {
+data = normalizarCatalogoFirebase(rawData);
 secureDB.validateSchema(data);
 } catch (schemaErr) {
 console.error('[SecureDataLayer] Esquema inválido recibido:', schemaErr);
@@ -2777,9 +2798,8 @@ if(!silent) showToast('La nube está vacía, usando datos locales','warning');
 return false;
 }
 _aplicandoNube=true;
-categorias = [...CATEGORIAS_FIJAS];
-if(Array.isArray(data.productos)&&data.productos.length) productos=data.productos;
-// Las categorías son estáticas y no se sustituyen con datos de Firebase.
+if(Array.isArray(data.productos)&&data.productos.length) productos=normalizarListaProductos(data.productos, 'descarga Firebase');
+if(Array.isArray(data.categorias)&&data.categorias.length) categorias=data.categorias;
 if(Array.isArray(data.banners)) banners=data.banners;
 if(data.tiendaConfig) tiendaConfig=Object.assign(tiendaConfig,data.tiendaConfig);
 if(data.personalizacion){
@@ -2877,10 +2897,20 @@ setTimeout(()=>toast.remove(),3200);
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function limpiarPrecio(p){ if(typeof p==='number') return p; const n=parseFloat(String(p).replace(/[$.,\s]/g,'')); return isNaN(n)?0:n; }
 function formatearPrecio(n){ const num = typeof n==='string' ? limpiarPrecio(n) : n; return '$'+(num||0).toLocaleString('es-CO'); }
-function precioFinalDe(p){ const num=limpiarPrecio(p.precio); const d=p.descuento>0?p.descuento:0; return Math.round(num*(100-d)/100); }
-function esVisible(p){ return p && p.visible!==false; }
-function prepararCacheBusqueda(){ productos.forEach(p=>{ p._cache=(p.nombre+' '+p.categoria+' '+(p.promo||'')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }); }
-function obtenerImagenPrincipal(p){ if(p.imagenes&&p.imagenes.length) return p.imagenes[0]; if(p.img) return p.img; return FALLBACK_IMG; }
+function precioFinalDe(p){ if(!p || typeof p!=='object') return 0; const num=limpiarPrecio(p.precio); const d=Number.isFinite(Number(p.descuento))?Math.max(0,Math.min(100,Number(p.descuento))):0; return Math.round(num*(100-d)/100); }
+function esVisible(p){ return !!(p && typeof p==='object' && p.visible!==false); }
+function prepararCacheBusqueda(){
+productos = normalizarListaProductos(productos, 'catálogo en memoria');
+productos.forEach(p=>{
+p._cache=(String(p.nombre||'')+' '+String(p.categoria||'')+' '+String(p.promo||'')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+});
+}
+function obtenerImagenPrincipal(p){
+if(!p || typeof p!=='object') return FALLBACK_IMG;
+if(Array.isArray(p.imagenes) && p.imagenes.length && typeof p.imagenes[0]==='string') return p.imagenes[0];
+if(typeof p.img==='string' && p.img.trim()) return p.img;
+return FALLBACK_IMG;
+}
 function tonosDe(p){
 if(!p) return [];
 if(Array.isArray(p.tonos) && p.tonos.length) return p.tonos;
@@ -3013,8 +3043,8 @@ const q=normalizarTexto(query);
 if(!q||q.length<2) return [];
 const resultados=[];
 productos.forEach(p=>{
-if(!esVisible(p)) return;
-const campos=[p.nombre, p.categoria, p.promo||''].join(' ');
+if(!p || typeof p!=='object' || !esVisible(p)) return;
+const campos=[p.nombre||'', p.categoria||'', p.promo||''].join(' ');
 const r=fuzzyMatch(q, campos);
 if(r.match){
 resultados.push({producto:p, score:r.score, type:r.type});
@@ -3024,7 +3054,7 @@ resultados.sort((a,b)=>b.score-a.score);
 return resultados.slice(0,12);
 }
 function detectarDuplicados(force=false){
-const currentVersion = productos.length + productos.reduce((acc,p)=>acc+(p.nombre||'').length,0);
+const currentVersion = productos.length + productos.reduce((acc,p)=>acc+String(p?.nombre||'').length,0);
 if(!force && _duplicadosCacheVersion === currentVersion && duplicadosCache.length >= 0){
 return duplicadosCache;
 }
@@ -3034,6 +3064,7 @@ const n = productos.length;
 for(let i=0;i<n;i++){
 if(visitados.has(i)) continue;
 const pi = productos[i];
+if(!pi || typeof pi!=='object') { visitados.add(i); continue; }
 const grupo = [i];
 const razones = new Set();
 const ni = normalizarNombreParaComparar(pi.nombre);
@@ -3041,6 +3072,7 @@ const imgI = obtenerImagenPrincipal(pi);
 for(let j=i+1;j<n;j++){
 if(visitados.has(j)) continue;
 const pj = productos[j];
+if(!pj || typeof pj!=='object') continue;
 const nj = normalizarNombreParaComparar(pj.nombre);
 const imgJ = obtenerImagenPrincipal(pj);
 let esDup = false;
@@ -3574,7 +3606,7 @@ const secD=document.getElementById('secDestacados');
 const rowD=document.getElementById('rowDestacados');
 rowD.innerHTML='';
 dests.forEach(p=>{ const c=buildCard(p,'ds'); if(c) rowD.appendChild(c); });
-secD.style.display=(featuredSectionEnabled && dests.length)?'':'none';
+secD.style.display=dests.length?'':'none';
 const nuevos=visibles.filter(p=>p.descuento>0);
 const secN=document.getElementById('secNuevos');
 const rowN=document.getElementById('rowNuevos');
@@ -3603,12 +3635,12 @@ const sel=document.getElementById('prodCategoria'); sel.innerHTML='';
 categorias.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
 }
 function renderCategoriasAdmin(){
-const grid=document.getElementById('categoriasGrid'); if(!grid) return; grid.innerHTML='';
-categorias.forEach(c=>{
-const count=productos.filter(p=>String(p.categoria||'').toLowerCase()===c.toLowerCase()).length;
+const grid=document.getElementById('categoriasGrid'); grid.innerHTML='';
+categorias.forEach((c,i)=>{
+const count=productos.filter(p=>p.categoria===c).length;
 const card=document.createElement('div');
-card.style.cssText='background:#f8fafc;border:1px solid var(--gray-border);border-radius:12px;padding:12px;text-align:center;';
-card.innerHTML=`<div style="font-weight:500;">${esc(c)}</div><div style="font-size:11px;color:#64748b;">${count} prod.</div>`;
+card.style.cssText='background:#f8fafc;border:2px solid var(--gray-border);border-radius:12px;padding:14px;text-align:center;position:relative;';
+card.innerHTML=`<button onclick="eliminarCategoria(${i})" title="Eliminar" style="position:absolute;top:5px;right:5px;background:var(--danger);color:white;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;">✕</button><div style="font-weight:500;">${esc(c)}</div><div style="font-size:11px;color:#64748b;">${count} prod.</div>`;
 grid.appendChild(card);
 });
 }
@@ -3624,10 +3656,18 @@ nav.appendChild(a);
 });
 }
 function agregarCategoria(){
-showToast('Las categorías son fijas. Para cambiarlas, edita CATEGORIAS_FIJAS en el código.','warning');
+const input=document.getElementById('nuevaCategoriaInput'); const nombre=input.value.trim();
+if(!nombre||categorias.some(c=>c.toLowerCase()===nombre.toLowerCase())){ showToast('Nombre inválido o duplicado','danger'); return; }
+categorias.push(nombre.charAt(0).toUpperCase()+nombre.slice(1).toLowerCase());
+ordenarCategorias();
+input.value=''; renderSelectCategorias(); renderSelectCategoriasBanner(); renderCategoriasAdmin(); renderNavCategorias(); renderDashboard();
+showToast('Categoría creada','success');
+programarSyncNube();
 }
-function eliminarCategoria(){
-showToast('Las categorías son fijas. No se eliminan desde el administrador.','warning');
+function eliminarCategoria(i){
+const c=categorias[i];
+if(productos.some(p=>p.categoria===c)){ showToast('Tiene productos asignados','danger'); return; }
+if(confirm(`¿Eliminar "${c}"?`)){ categorias.splice(i,1); renderSelectCategorias(); renderSelectCategoriasBanner(); renderCategoriasAdmin(); renderNavCategorias(); renderDashboard(); programarSyncNube(); }
 }
 function filtrarCategoria(cat){
 categoriaActual=cat;
@@ -4069,10 +4109,6 @@ rec.appendChild(row);
 });
 }
 function renderDestacadosAdmin(){
-const sectionToggle=document.getElementById('featuredSectionToggle');
-if(sectionToggle) sectionToggle.checked=featuredSectionEnabled;
-const sectionState=document.getElementById('featuredSectionState');
-if(sectionState){ sectionState.textContent=featuredSectionEnabled?'VISIBLE':'OCULTA'; sectionState.className='sw-lbl '+(featuredSectionEnabled?'on':'off'); }
 const cont=document.getElementById('destacadosList'); if(!cont) return;
 cont.innerHTML='';
 const resumen=document.getElementById('destResumen');
@@ -4233,17 +4269,20 @@ renderPaginacionInventario();
 return;
 }
 const orden = document.getElementById('invOrdenar') ? document.getElementById('invOrdenar').value : 'name-asc';
-let indices = productos.map((_,i) => i);
+let indices = productos.map((p,i) => p && typeof p==='object' ? i : -1).filter(i => i >= 0);
+const nombreEn = i => String(productos[i]?.nombre || '');
+const categoriaEn = i => String(productos[i]?.categoria || '');
 switch(orden){
-case 'name-asc': indices.sort((a,b) => productos[a].nombre.localeCompare(productos[b].nombre, 'es', {sensitivity:'base'})); break;
-case 'name-desc': indices.sort((a,b) => productos[b].nombre.localeCompare(productos[a].nombre, 'es', {sensitivity:'base'})); break;
-case 'price-asc': indices.sort((a,b) => limpiarPrecio(productos[a].precio) - limpiarPrecio(productos[b].precio)); break;
-case 'price-desc': indices.sort((a,b) => limpiarPrecio(productos[b].precio) - limpiarPrecio(productos[a].precio)); break;
-case 'category': indices.sort((a,b) => productos[a].categoria.localeCompare(productos[b].categoria, 'es', {sensitivity:'base'})); break;
+case 'name-asc': indices.sort((a,b) => nombreEn(a).localeCompare(nombreEn(b), 'es', {sensitivity:'base'})); break;
+case 'name-desc': indices.sort((a,b) => nombreEn(b).localeCompare(nombreEn(a), 'es', {sensitivity:'base'})); break;
+case 'price-asc': indices.sort((a,b) => limpiarPrecio(productos[a]?.precio) - limpiarPrecio(productos[b]?.precio)); break;
+case 'price-desc': indices.sort((a,b) => limpiarPrecio(productos[b]?.precio) - limpiarPrecio(productos[a]?.precio)); break;
+case 'category': indices.sort((a,b) => categoriaEn(a).localeCompare(categoriaEn(b), 'es', {sensitivity:'base'})); break;
 }
 const q = (document.getElementById('inventarioBuscador')?.value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const filtrados = indices.filter(i => {
 const p=productos[i];
+if(!p || typeof p!=='object') return false;
 const vis=esVisible(p);
 let ok=true;
 if(invFiltro==='visibles') ok=vis;
@@ -4257,7 +4296,7 @@ const catFiltro = catSel ? catSel.value : '';
 if(catFiltro) ok = p.categoria === catFiltro;
 }
 if(ok && q){
-const hay=(p.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')+' '+p.categoria.toLowerCase()).includes(q);
+const hay=(String(p?.nombre||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')+' '+String(p?.categoria||'').toLowerCase()).includes(q);
 ok=hay;
 }
 return ok;
@@ -4633,7 +4672,9 @@ function ordenarCategorias(){
 categorias.sort((a,b) => a.localeCompare(b, 'es', {sensitivity:'base', numeric:true}));
 }
 function ordenarProductos(){
-productos.sort((a,b) => (a.nombre||'').localeCompare(b.nombre||'', 'es', {sensitivity:'base', numeric:true}));
+if(!Array.isArray(productos)) productos=[];
+productos = normalizarListaProductos(productos, 'ordenamiento');
+productos.sort((a,b) => String(a.nombre||'').localeCompare(String(b.nombre||''), 'es', {sensitivity:'base', numeric:true}));
 }
 let _adminResizing = false;
 let _adminResizeDir = '';
@@ -4714,16 +4755,11 @@ if(drawerText) drawerText.style.display = 'none';
 }
 })();
 const cachedData = loadCache();
-let cacheApplied = applyCachedData(cachedData);
-categorias = [...CATEGORIAS_FIJAS];
+const cacheApplied = applyCachedData(cachedData);
 ordenarCategorias();
 ordenarProductos();
 applyPers(pers);
-window.addEventListener('DOMContentLoaded',async()=>{
-if(!cacheApplied){
-  const indexedCache=await leerCacheIndexedDB();
-  if(indexedCache && applyCachedData(indexedCache)) cacheApplied=true;
-}
+window.addEventListener('DOMContentLoaded',()=>{
 loadFlags();
 renderAllTienda();
 prepararCacheBusqueda();
@@ -4839,9 +4875,8 @@ await subirDatosANube(true);
 return;
 }
 _aplicandoNube=true;
-categorias = [...CATEGORIAS_FIJAS];
-if(Array.isArray(data.productos)&&data.productos.length) productos=data.productos;
-// Las categorías son estáticas y no se sustituyen con datos de Firebase.
+if(Array.isArray(data.productos)&&data.productos.length) productos=normalizarListaProductos(data.productos, 'descarga Firebase');
+if(Array.isArray(data.categorias)&&data.categorias.length) categorias=data.categorias;
 if(Array.isArray(data.banners)) banners=data.banners;
 if(data.tiendaConfig) tiendaConfig=Object.assign(tiendaConfig,data.tiendaConfig);
 if(data.personalizacion){
