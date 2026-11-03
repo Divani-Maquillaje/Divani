@@ -1187,7 +1187,11 @@ Las operaciones de escritura en la base de datos están <b>bloqueadas</b> por se
 <div id="tab-destacados" class="admin-view">
 <div class="dashboard-card">
 <h4>⭐ Productos destacados</h4>
-<p style="font-size:12.5px;color:#64748b;margin:-6px 0 14px;">Activa el interruptor para agregar productos a la colección <b>Destacados</b>. Aparecen en la sección "Destacados" de la tienda y puedes enlazarlos desde un banner eligiendo <b>"Destacados"</b> como colección destino.</p>
+<p style="font-size:12.5px;color:#64748b;margin:-6px 0 14px;">Marca productos como destacados para incluirlos en esta colección. El siguiente control solo muestra u oculta la sección de inicio; no desmarca ni elimina productos.</p>
+<div class="estado-box" style="margin-bottom:14px;">
+<div class="estado-txt"><b>Mostrar sección Destacados en la tienda</b><small>OFF oculta la sección de inicio, pero conserva todos los productos destacados y los enlaces de banners.</small></div>
+<div class="switch-col"><label class="switch"><input type="checkbox" id="featuredSectionToggle" onchange="cambiarVisibilidadSeccionDestacados(this.checked)"><span class="switch-slider"></span></label><span class="sw-lbl" id="featuredSectionState">VISIBLE</span></div>
+</div>
 <div id="destResumen" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;"></div>
 <button class="sync-btn secondary" style="width:auto;padding:10px 16px;margin:0 0 14px;" onclick="verColeccionDestacados()">️ Ver colección en la tienda</button>
 <div id="destacadosList"></div>
@@ -1351,13 +1355,10 @@ Se detectó una API key de ImgBB visible en el código fuente. Recomendamos:
 </div>
 <div id="tab-categorias" class="admin-view">
 <div class="dashboard-card">
-<h4>️ Nueva categoría</h4>
-<div style="display:flex;gap:10px;">
-<input type="text" id="nuevaCategoriaInput" placeholder="Ej: Labiales" style="flex:1;padding:11px;border:1.5px solid var(--gray-border);border-radius:12px;">
-<button class="sync-btn primary" style="width:auto;padding:11px 20px;margin:0;" onclick="agregarCategoria()">✨ Crear</button>
+<h4>🏷️ Categorías de DIVANI</h4>
+<p style="font-size:12.5px;color:#64748b;margin:-6px 0 14px;line-height:1.6;">Estas categorías están definidas directamente en el código para evitar descargarlas desde Firebase. Para agregar, renombrar o quitar una categoría, se debe editar la lista <b>CATEGORIAS_FIJAS</b> y publicar una nueva versión de la página.</p>
+<div id="categoriasGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;"></div>
 </div>
-</div>
-<div class="dashboard-card"><h4>🏷️ Categorías existentes</h4><p style="font-size:12.5px;color:#64748b;margin:-6px 0 14px;">Solo puedes eliminar categorías sin productos.</p><div id="categoriasGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;"></div></div>
 </div>
 <div id="tab-personaliza" class="admin-view">
 <div class="dashboard-card">
@@ -1789,7 +1790,30 @@ imagenes:[IMG.shampoo], destacado:true, promo:'Nueva línea Repair Rose: keratin
 { id:'8', nombre:'Set Brochas Divani · Edición Rosé', categoria:'Accesorios', precio:48000, visible:true, imagenes:[IMG.brochas] }
 ];
 const DEFAULT_IDS=new Set(productos.map(p=>p.id));
-let categorias = ['Cejas','Labios','Ojos','Skincare','Capilar','Accesorios','Rostro','Brochas'];
+// Categorías estáticas tomadas de categorias-respaldo.json.
+// Para agregar o quitar una categoría, edita únicamente esta lista en el código.
+const CATEGORIAS_FIJAS = [
+'Og','Trendy','Ani-k','Bloomshell','Atenea','Prosa','La receta','Kaba','Milagros',
+'Purpure','Montoc','Beauty glazed','Bioaqua','Clickhair','DÂ´luchi','Dolce bella',
+'Elaya','Girly','Henkel','La colors','Lula','Melu','Majykal beauty',
+'Michelle arango skin','Myk cosmetics','Naba','Origen botanico','Pocion',
+'Raquelle cosmetics','Rubi rose','Sagui'
+];
+let categorias = [...CATEGORIAS_FIJAS];
+const FEATURED_SECTION_KEY = 'divani_featured_section_enabled_v1';
+let featuredSectionEnabled = true;
+try {
+  const savedFeaturedSection = localStorage.getItem(FEATURED_SECTION_KEY);
+  if (savedFeaturedSection === '0') featuredSectionEnabled = false;
+} catch(e) {}
+function cambiarVisibilidadSeccionDestacados(enabled){
+  featuredSectionEnabled = !!enabled;
+  try { localStorage.setItem(FEATURED_SECTION_KEY, featuredSectionEnabled ? '1' : '0'); } catch(e) {}
+  renderHome();
+  renderDestacadosAdmin();
+  showToast(featuredSectionEnabled ? 'La sección Destacados está visible en la tienda.' : 'La sección Destacados está oculta. Los productos siguen marcados como destacados.','success');
+}
+
 let banners = [
 { id:'b1', etiqueta:'Nueva colección', titulo:'Descubre tus nuevos favoritos', sub:'Productos seleccionados para complementar tu estilo y rutina.', promo:'NUEVO', textoBoton:'Comprar ahora', img:IMG.hero, tema:1, cat:'Todos', usarIdentidad:true, imgFit:'cover', imgPos:'center', duracion:3 },
 { id:'b2', etiqueta:'Selección especial', titulo:'Los favoritos de la casa', sub:'Marca productos favoritos y aparecerán aquí.', promo:'TOP', textoBoton:'Ver destacados', img:IMG.swatches, tema:2, cat:'Destacados', usarIdentidad:true, imgFit:'cover', imgPos:'center', duracion:3 }
@@ -1879,21 +1903,61 @@ const CACHE_KEY = 'divani_cache_v1';
 const SYNC_TS_KEY = 'divani_last_sync_ts';
 const CACHE_FRESHNESS_MS = 6 * 60 * 60 * 1000;
 const ETAG_KEY = 'divani_etag_v1';
+const DIVANI_CACHE_DB = 'divani_catalog_cache';
+const DIVANI_CACHE_STORE = 'catalogo';
+function abrirDBCache(){
+  return new Promise((resolve,reject)=>{
+    if(!('indexedDB' in window)){ reject(new Error('IndexedDB no disponible')); return; }
+    const request=indexedDB.open(DIVANI_CACHE_DB,1);
+    request.onupgradeneeded=()=>{
+      const db=request.result;
+      if(!db.objectStoreNames.contains(DIVANI_CACHE_STORE)) db.createObjectStore(DIVANI_CACHE_STORE,{keyPath:'id'});
+    };
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error||new Error('No se pudo abrir IndexedDB'));
+  });
+}
+async function guardarCacheIndexedDB(data){
+  let db;
+  try{
+    db=await abrirDBCache();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(DIVANI_CACHE_STORE,'readwrite');
+      tx.objectStore(DIVANI_CACHE_STORE).put({id:'principal',data});
+      tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error||new Error('Error guardando caché'));
+      tx.onabort=()=>reject(tx.error||new Error('Guardado cancelado'));
+    });
+  }catch(e){ console.warn('[DIVANI] No se pudo guardar caché IndexedDB:',e.message); }
+  finally{ if(db) db.close(); }
+}
+async function leerCacheIndexedDB(){
+  let db;
+  try{
+    db=await abrirDBCache();
+    return await new Promise((resolve,reject)=>{
+      const tx=db.transaction(DIVANI_CACHE_STORE,'readonly');
+      const req=tx.objectStore(DIVANI_CACHE_STORE).get('principal');
+      req.onsuccess=()=>resolve(req.result?.data||null);
+      req.onerror=()=>reject(req.error||new Error('Error leyendo caché'));
+    });
+  }catch(e){ console.warn('[DIVANI] No se pudo leer caché IndexedDB:',e.message); return null; }
+  finally{ if(db) db.close(); }
+}
 function loadCache(){
 try{ const raw = localStorage.getItem(CACHE_KEY); if(!raw) return null; return JSON.parse(raw); }
 catch(e){ return null; }
 }
 function saveCache(){
-try{
 const data = { productos, categorias, banners, tiendaConfig, personalizacion: pers, ts: Date.now() };
-localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-}catch(e){}
+try{ localStorage.setItem(CACHE_KEY, JSON.stringify(data)); }catch(e){ console.warn('[DIVANI] Caché localStorage no disponible; se conserva IndexedDB.'); }
+// IndexedDB guarda el catálogo de forma asíncrona y no bloquea la interfaz.
+void guardarCacheIndexedDB(data);
 }
 function applyCachedData(cache){
 if(!cache) return false;
 let applied = false;
 if(Array.isArray(cache.productos) && cache.productos.length){ productos = cache.productos; applied = true; }
-if(Array.isArray(cache.categorias) && cache.categorias.length){ categorias = cache.categorias; }
+// Las categorías se mantienen en el código; no se reemplazan desde caché.
 if(Array.isArray(cache.banners) && cache.banners.length){ banners = cache.banners; }
 if(cache.tiendaConfig){ tiendaConfig = Object.assign(tiendaConfig, cache.tiendaConfig); }
 if(cache.personalizacion){
@@ -2713,8 +2777,9 @@ if(!silent) showToast('La nube está vacía, usando datos locales','warning');
 return false;
 }
 _aplicandoNube=true;
+categorias = [...CATEGORIAS_FIJAS];
 if(Array.isArray(data.productos)&&data.productos.length) productos=data.productos;
-if(Array.isArray(data.categorias)&&data.categorias.length) categorias=data.categorias;
+// Las categorías son estáticas y no se sustituyen con datos de Firebase.
 if(Array.isArray(data.banners)) banners=data.banners;
 if(data.tiendaConfig) tiendaConfig=Object.assign(tiendaConfig,data.tiendaConfig);
 if(data.personalizacion){
@@ -3509,7 +3574,7 @@ const secD=document.getElementById('secDestacados');
 const rowD=document.getElementById('rowDestacados');
 rowD.innerHTML='';
 dests.forEach(p=>{ const c=buildCard(p,'ds'); if(c) rowD.appendChild(c); });
-secD.style.display=dests.length?'':'none';
+secD.style.display=(featuredSectionEnabled && dests.length)?'':'none';
 const nuevos=visibles.filter(p=>p.descuento>0);
 const secN=document.getElementById('secNuevos');
 const rowN=document.getElementById('rowNuevos');
@@ -3538,12 +3603,12 @@ const sel=document.getElementById('prodCategoria'); sel.innerHTML='';
 categorias.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
 }
 function renderCategoriasAdmin(){
-const grid=document.getElementById('categoriasGrid'); grid.innerHTML='';
-categorias.forEach((c,i)=>{
-const count=productos.filter(p=>p.categoria===c).length;
+const grid=document.getElementById('categoriasGrid'); if(!grid) return; grid.innerHTML='';
+categorias.forEach(c=>{
+const count=productos.filter(p=>String(p.categoria||'').toLowerCase()===c.toLowerCase()).length;
 const card=document.createElement('div');
-card.style.cssText='background:#f8fafc;border:2px solid var(--gray-border);border-radius:12px;padding:14px;text-align:center;position:relative;';
-card.innerHTML=`<button onclick="eliminarCategoria(${i})" title="Eliminar" style="position:absolute;top:5px;right:5px;background:var(--danger);color:white;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;">✕</button><div style="font-weight:500;">${esc(c)}</div><div style="font-size:11px;color:#64748b;">${count} prod.</div>`;
+card.style.cssText='background:#f8fafc;border:1px solid var(--gray-border);border-radius:12px;padding:12px;text-align:center;';
+card.innerHTML=`<div style="font-weight:500;">${esc(c)}</div><div style="font-size:11px;color:#64748b;">${count} prod.</div>`;
 grid.appendChild(card);
 });
 }
@@ -3559,18 +3624,10 @@ nav.appendChild(a);
 });
 }
 function agregarCategoria(){
-const input=document.getElementById('nuevaCategoriaInput'); const nombre=input.value.trim();
-if(!nombre||categorias.some(c=>c.toLowerCase()===nombre.toLowerCase())){ showToast('Nombre inválido o duplicado','danger'); return; }
-categorias.push(nombre.charAt(0).toUpperCase()+nombre.slice(1).toLowerCase());
-ordenarCategorias();
-input.value=''; renderSelectCategorias(); renderSelectCategoriasBanner(); renderCategoriasAdmin(); renderNavCategorias(); renderDashboard();
-showToast('Categoría creada','success');
-programarSyncNube();
+showToast('Las categorías son fijas. Para cambiarlas, edita CATEGORIAS_FIJAS en el código.','warning');
 }
-function eliminarCategoria(i){
-const c=categorias[i];
-if(productos.some(p=>p.categoria===c)){ showToast('Tiene productos asignados','danger'); return; }
-if(confirm(`¿Eliminar "${c}"?`)){ categorias.splice(i,1); renderSelectCategorias(); renderSelectCategoriasBanner(); renderCategoriasAdmin(); renderNavCategorias(); renderDashboard(); programarSyncNube(); }
+function eliminarCategoria(){
+showToast('Las categorías son fijas. No se eliminan desde el administrador.','warning');
 }
 function filtrarCategoria(cat){
 categoriaActual=cat;
@@ -4012,6 +4069,10 @@ rec.appendChild(row);
 });
 }
 function renderDestacadosAdmin(){
+const sectionToggle=document.getElementById('featuredSectionToggle');
+if(sectionToggle) sectionToggle.checked=featuredSectionEnabled;
+const sectionState=document.getElementById('featuredSectionState');
+if(sectionState){ sectionState.textContent=featuredSectionEnabled?'VISIBLE':'OCULTA'; sectionState.className='sw-lbl '+(featuredSectionEnabled?'on':'off'); }
 const cont=document.getElementById('destacadosList'); if(!cont) return;
 cont.innerHTML='';
 const resumen=document.getElementById('destResumen');
@@ -4653,11 +4714,16 @@ if(drawerText) drawerText.style.display = 'none';
 }
 })();
 const cachedData = loadCache();
-const cacheApplied = applyCachedData(cachedData);
+let cacheApplied = applyCachedData(cachedData);
+categorias = [...CATEGORIAS_FIJAS];
 ordenarCategorias();
 ordenarProductos();
 applyPers(pers);
-window.addEventListener('DOMContentLoaded',()=>{
+window.addEventListener('DOMContentLoaded',async()=>{
+if(!cacheApplied){
+  const indexedCache=await leerCacheIndexedDB();
+  if(indexedCache && applyCachedData(indexedCache)) cacheApplied=true;
+}
 loadFlags();
 renderAllTienda();
 prepararCacheBusqueda();
@@ -4773,8 +4839,9 @@ await subirDatosANube(true);
 return;
 }
 _aplicandoNube=true;
+categorias = [...CATEGORIAS_FIJAS];
 if(Array.isArray(data.productos)&&data.productos.length) productos=data.productos;
-if(Array.isArray(data.categorias)&&data.categorias.length) categorias=data.categorias;
+// Las categorías son estáticas y no se sustituyen con datos de Firebase.
 if(Array.isArray(data.banners)) banners=data.banners;
 if(data.tiendaConfig) tiendaConfig=Object.assign(tiendaConfig,data.tiendaConfig);
 if(data.personalizacion){
