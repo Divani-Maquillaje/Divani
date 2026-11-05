@@ -1162,6 +1162,11 @@ Las operaciones de escritura en la base de datos están <b>bloqueadas</b> por se
 </select>
 <span style="margin-left:auto;font-size:12px;color:var(--muted);" id="invCountLabel">0 productos</span>
 </div>
+<div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 16px;">
+ <button type="button" class="sync-btn primary" style="width:auto;min-width:220px;margin:0;" onclick="exportarProductosExcel()">📊 Exportar catálogo a Excel (.xlsx)</button>
+ <button type="button" class="sync-btn" style="width:auto;min-width:190px;margin:0;" onclick="exportarProductosCSV()">⬇️ Exportar productos a CSV</button>
+ <small style="color:var(--muted);font-size:11px;flex-basis:100%;text-align:right;">Exporta todos los productos directamente desde Firebase, sin aplicar filtros ni paginación.</small>
+ </div>
 <div style="overflow-x:auto;">
 <table class="tbl">
 <thead><tr>
@@ -4322,6 +4327,215 @@ actualizarCarrito();
 refreshPublic(); refreshAdminViews(); saveFlags();
 showToast(val?'Producto visible en el catálogo':'Producto oculto para los clientes', val?'success':'warning');
 }
+
+// Carga SheetJS solo cuando se solicita el Excel, para no aumentar el peso
+// de la carga inicial de la tienda.
+function cargarLibreriaExcel(){
+ return new Promise((resolve,reject)=>{
+   if(window.XLSX){ resolve(window.XLSX); return; }
+   const existente=document.querySelector('script[data-divani-xlsx="true"]');
+   if(existente){
+     existente.addEventListener('load',()=>window.XLSX?resolve(window.XLSX):reject(new Error('No se pudo iniciar la librería de Excel.')),{once:true});
+     existente.addEventListener('error',()=>reject(new Error('No se pudo cargar la librería de Excel. Revisa tu conexión e inténtalo de nuevo.')),{once:true});
+     return;
+   }
+   const script=document.createElement('script');
+   script.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+   script.async=true;
+   script.dataset.divaniXlsx='true';
+   script.onload=()=>window.XLSX?resolve(window.XLSX):reject(new Error('La librería de Excel se cargó, pero no está disponible.'));
+   script.onerror=()=>reject(new Error('No se pudo cargar la librería de Excel. Revisa tu conexión e inténtalo de nuevo.'));
+   document.head.appendChild(script);
+ });
+}
+
+// Exporta todo el catálogo actual de Firebase a un libro Excel con dos hojas:
+// Productos (detalle completo) y Resumen (conteos para control de inventario).
+// Es una operación de solo lectura: no modifica Firebase ni el catálogo en memoria.
+function exportarProductosExcel(){
+ if(!adminAutenticado){
+   showToast('Inicia sesión en el panel para exportar el catálogo','warning');
+   return;
+ }
+ const btn=document.querySelector('#tab-inventario button[onclick="exportarProductosExcel()"]');
+ if(btn){ btn.disabled=true; btn.textContent='Preparando Excel…'; }
+ const restaurarBoton=()=>{ if(btn){ btn.disabled=false; btn.textContent='📊 Exportar catálogo a Excel (.xlsx)'; } };
+ (async()=>{
+   try{
+     const endpoint=dbEndpoint();
+     if(!endpoint) throw new Error('No hay una URL válida de Firebase configurada.');
+     const endpoints=[endpoint,endpointAlternativoFirebase(endpoint)].filter((url,i,arr)=>url && arr.indexOf(url)===i);
+     let catalogo=null;
+     let ultimoError=null;
+     for(const url of endpoints){
+       const controller=new AbortController();
+       const timeout=setTimeout(()=>controller.abort(),CLOUD_CONFIG.FETCH_TIMEOUT);
+       try{
+         const response=await fetch(url,{method:'GET',cache:'no-store',headers:{'Accept':'application/json'},signal:controller.signal});
+         if(!response.ok) throw new Error('Firebase respondió HTTP '+response.status+'.');
+         const raw=await response.json();
+         const normalizado=normalizarCatalogoFirebase(raw);
+         if(!normalizado || !Array.isArray(normalizado.productos) || !normalizado.productos.length){
+           throw new Error('No se encontró un catálogo con productos en Firebase.');
+         }
+         if(typeof secureDB!=='undefined' && secureDB.validateSchema) secureDB.validateSchema(normalizado);
+         catalogo=normalizado.productos;
+         break;
+       }catch(error){ ultimoError=error; }
+       finally{ clearTimeout(timeout); }
+     }
+     if(!catalogo) throw (ultimoError || new Error('No fue posible leer el catálogo de Firebase.'));
+
+     const XLSX=await cargarLibreriaExcel();
+     const encabezados=['ID del producto','Nombre','Categoría','Marca','Precio','Descuento','Promoción','Producto destacado','Estado de visibilidad','URL de imagen','Descripción'];
+     const productosRows=catalogo.map(p=>{
+       const imagenes=Array.isArray(p.imagenes)
+         ? p.imagenes.filter(v=>typeof v==='string' && v.trim()).join(' | ')
+         : (typeof p.imagenes==='string' ? p.imagenes : (p.img || ''));
+       return [
+         p.id==null?'':String(p.id),p.nombre||'',p.categoria||'',p.marca||'',
+         p.precio==null?'':p.precio,p.descuento==null?'':p.descuento,p.promo||'',
+         p.destacado===true?'Sí':'No',p.visible===false?'Oculto':'Visible',imagenes,p.descripcion||''
+       ];
+     });
+     const total=catalogo.length;
+     const visibles=catalogo.filter(p=>p.visible!==false).length;
+     const ocultos=total-visibles;
+     const conteoCategorias={};
+     catalogo.forEach(p=>{
+       const categoria=String(p.categoria||'Sin categoría').trim()||'Sin categoría';
+       conteoCategorias[categoria]=(conteoCategorias[categoria]||0)+1;
+     });
+     const categorias=Object.keys(conteoCategorias).sort((a,b)=>a.localeCompare(b,'es'));
+     const resumenRows=[
+       ['REPORTE DEL CATÁLOGO DIVANI',''],
+       ['Fecha de exportación',new Date().toLocaleString('es-CO')],
+       ['Total de productos registrados',total],
+       ['Productos visibles',visibles],
+       ['Productos ocultos',ocultos],
+       ['Cantidad de categorías',categorias.length],
+       ['', ''],
+       ['PRODUCTOS POR CATEGORÍA','Cantidad'],
+       ...categorias.map(categoria=>[categoria,conteoCategorias[categoria]]),
+       ['', ''],
+       ['CONTROL','Cantidad'],
+       ['Productos exportados',total]
+     ];
+     const wb=XLSX.utils.book_new();
+     const wsResumen=XLSX.utils.aoa_to_sheet(resumenRows);
+     wsResumen['!cols']=[{wch:34},{wch:28}];
+     XLSX.utils.book_append_sheet(wb,wsResumen,'Resumen');
+     const wsProductos=XLSX.utils.aoa_to_sheet([encabezados,...productosRows]);
+     wsProductos['!cols']=[{wch:18},{wch:32},{wch:22},{wch:20},{wch:14},{wch:14},{wch:24},{wch:18},{wch:22},{wch:55},{wch:45}];
+     wsProductos['!autofilter']={ref:wsProductos['!ref']};
+     XLSX.utils.book_append_sheet(wb,wsProductos,'Productos');
+     const fecha=new Date().toISOString().slice(0,10);
+     XLSX.writeFile(wb,'DIVANI_catalogo_'+fecha+'.xlsx');
+     showToast('Excel descargado: '+total+' productos. '+visibles+' visibles y '+ocultos+' ocultos.','success');
+   }catch(error){
+     console.error('[DIVANI] Error al exportar Excel:',error);
+     const mensaje=error && error.name==='AbortError'
+       ? 'Firebase tardó demasiado en responder. Intenta nuevamente.'
+       : (error && error.message ? error.message : 'Error desconocido al exportar.');
+     showToast('No se pudo exportar a Excel: '+esc(mensaje),'danger');
+   }finally{ restaurarBoton(); }
+ })();
+}
+
+// Exporta una lectura completa y actual de Firebase. No utiliza filtros/paginación
+// del inventario y no realiza escrituras ni modifica el catálogo en memoria.
+function exportarProductosCSV(){
+ if(!adminAutenticado){
+   showToast('Inicia sesión en el panel para exportar el catálogo','warning');
+   return;
+ }
+ const btn = document.querySelector('#tab-inventario button[onclick="exportarProductosCSV()"]');
+ if(btn){ btn.disabled=true; btn.textContent='Consultando Firebase…'; }
+ const restaurarBoton = () => {
+   if(btn){ btn.disabled=false; btn.textContent='⬇️ Exportar productos a CSV'; }
+ };
+ (async()=>{
+   try{
+     const endpoint = dbEndpoint();
+     if(!endpoint) throw new Error('No hay una URL válida de Firebase configurada.');
+     const endpoints = [endpoint, endpointAlternativoFirebase(endpoint)]
+       .filter((url,i,arr)=>url && arr.indexOf(url)===i);
+     let catalogo = null;
+     let ultimoError = null;
+     for(const url of endpoints){
+       const controller = new AbortController();
+       const timeout = setTimeout(()=>controller.abort(), CLOUD_CONFIG.FETCH_TIMEOUT);
+       try{
+         const response = await fetch(url,{
+           method:'GET',
+           cache:'no-store',
+           headers:{'Accept':'application/json'},
+           signal:controller.signal
+         });
+         if(!response.ok) throw new Error('Firebase respondió HTTP '+response.status+'.');
+         const raw = await response.json();
+         const normalizado = normalizarCatalogoFirebase(raw);
+         if(!normalizado || !Array.isArray(normalizado.productos) || !normalizado.productos.length){
+           throw new Error('No se encontró un catálogo con productos en Firebase.');
+         }
+         if(typeof secureDB!=='undefined' && secureDB.validateSchema){
+           secureDB.validateSchema(normalizado);
+         }
+         catalogo = normalizado.productos;
+         break;
+       }catch(error){
+         ultimoError=error;
+       }finally{
+         clearTimeout(timeout);
+       }
+     }
+     if(!catalogo) throw (ultimoError || new Error('No fue posible leer el catálogo de Firebase.'));
+     const encabezados = [
+       'ID del producto','Nombre','Categoría','Marca','Precio','Descuento',
+       'Promoción','Producto destacado','Estado de visibilidad','URL de imagen','Descripción'
+     ];
+     const valorCSV = value => {
+       if(value===null || value===undefined) return '';
+       let valueText;
+       if(Array.isArray(value)) valueText=value.map(v=>String(v??'')).join(' | ');
+       else if(typeof value==='object') valueText=JSON.stringify(value);
+       else valueText=String(value);
+       return '"' + valueText.replace(/"/g,'""') + '"';
+     };
+     const filas = catalogo.map(p=>{
+       const imagenes = Array.isArray(p.imagenes)
+         ? p.imagenes.filter(v=>typeof v==='string' && v.trim()).join(' | ')
+         : (typeof p.imagenes==='string' ? p.imagenes : (p.img || ''));
+       return [
+         p.id, p.nombre, p.categoria, p.marca, p.precio, p.descuento,
+         p.promo, p.destacado===true ? 'Sí' : 'No',
+         p.visible===false ? 'Oculto' : 'Visible',
+         imagenes, p.descripcion
+       ].map(valorCSV).join(',');
+     });
+     const csv = '\ufeff' + [encabezados.map(valorCSV).join(','), ...filas].join('\r\n');
+     const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+     const objectUrl = URL.createObjectURL(blob);
+     const link = document.createElement('a');
+     link.href=objectUrl;
+     link.download='DIVANI_productos.csv';
+     document.body.appendChild(link);
+     link.click();
+     link.remove();
+     setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
+     showToast('CSV descargado: '+catalogo.length+' productos exportados.','success');
+   }catch(error){
+     console.error('[DIVANI] Error al exportar CSV:',error);
+     const mensaje = error && error.name==='AbortError'
+       ? 'Firebase tardó demasiado en responder. Intenta nuevamente.'
+       : (error && error.message ? error.message : 'Error desconocido al exportar.');
+     showToast('No se pudo exportar: '+esc(mensaje),'danger');
+   }finally{
+     restaurarBoton();
+   }
+ })();
+}
+
 function exportarDatosJSON(){
 const blob=new Blob([JSON.stringify({productos,categorias,banners,tiendaConfig,personalizacion:pers},null,2)],{type:'application/json'});
 const a=document.createElement('a');
