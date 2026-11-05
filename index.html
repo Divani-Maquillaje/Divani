@@ -25,24 +25,24 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/playfair-display@5/600.css">
 <style>
 :root{
---divani-primary:#e8557a;
---divani-primary-dark:#c94268;
---divani-secondary:#fce4ec;
---divani-background:#fdf2f8;
---divani-background-gradient:var(--divani-background);
---divani-header-bg:#fdf2f8;
---divani-header-gradient:var(--divani-header-bg);
+--divani-primary:#ff8bc2;
+--divani-primary-dark:#e66aa5;
+--divani-secondary:#ffc5df;
+--divani-background:#ff9ed2;
+--divani-background-gradient:#ff9ed2;
+--divani-header-bg:#ffc5df;
+--divani-header-gradient:#ffc5df;
 --divani-cart-bg:#ffffff;
 --divani-cart-gradient:var(--divani-cart-bg);
---divani-light:#fce4ec;
---divani-text:#3d1f2e;
---divani-button:#e8557a;
---divani-accent:#f48fb1;
+--divani-light:#ffeef5;
+--divani-text:#811847;
+--divani-button:#ff8bc2;
+--divani-accent:#ffc5df;
 --divani-on-primary:#ffffff;
---divani-admin-btn:#e8557a;
+--divani-admin-btn:#ff8bc2;
 --divani-admin-btn-text:#ffffff;
 --divani-category-bg:#ffffff;
---divani-category-text:#e8557a;
+--divani-category-text:#ff8bc2;
 --divani-featured-bg:#fff8e1;
 --divani-featured-text:#f9a825;
 --divani-card-info-bg:#ffffff;
@@ -52,13 +52,13 @@
 --categoryBtnBg:#ffffff;
 --categoryBtnText:#3d1f2e;
 --categoryBtnBorder:#f0dce4;
---categoryBtnActiveBg:#e8557a;
+--categoryBtnActiveBg:#ff8bc2;
 --categoryBtnActiveText:#ffffff;
---font-title:'Playfair Display',serif;
+--font-title:'Poppins',sans-serif;
 --font-body:'Poppins',sans-serif;
 --font-button:'Poppins',sans-serif;
 --font-price:'Poppins',sans-serif;
---fw-body:300; --fw-mid:400; --fw-high:500; --fw-max:600;
+--fw-body:400; --fw-mid:500; --fw-high:600; --fw-max:600;
 --primary-dark:color-mix(in srgb,var(--divani-button) 78%, #000);
 --light-pink:var(--divani-light);
 --text-dark:var(--divani-text);
@@ -1793,19 +1793,23 @@ let banners = [
 ];
 let tiendaConfig = { ubicacion:'Colombia', instagram:'divani_maquillaje', tiktok:'divani_maquillaje', whatsapp:'573003896683' };
 const DEFAULT_PERS = {
-logo: LOGO_DEFAULT, name:'DIVANI', tagline:'Tu tienda de confianza', weight:'normal',
-palette:{ primary:'#e8557a', secondary:'#fce4ec', background:'#fdf2f8', light:'#fce4ec', text:'#3d1f2e', button:'#e8557a', accent:'#f48fb1', adminBtn:'#e8557a',
-headerBg:'#fdf2f8', cartBg:'#ffffff', categoryBg:'#ffffff', categoryText:'#e8557a', featuredBg:'#fff8e1', featuredText:'#f9a825',
-cardInfoBg:'#ffffff', cardInfoText:'#3d1f2e',
+logo: LOGO_DEFAULT, name:'DIVANI', tagline:'La tienda mas rosadita ', weight:'medium',
+palette:{
+primary:'#ff8bc2', secondary:'#ffc5df', background:'#ff9ed2', light:'#ffeef5',
+text:'#811847', button:'#ff8bc2', accent:'#ffc5df', adminBtn:'#ff8bc2',
+headerBg:'#ffc5df', cartBg:'#ffffff', categoryBg:'#ffffff', categoryText:'#ff8bc2',
+featuredBg:'#fff8e1', featuredText:'#f9a825',
+cardInfoBg:'#ffffff', cardInfoText:'#811847',
 categoryBtnBg:'#ffffff', categoryBtnText:'#3d1f2e', categoryBtnBorder:'#f0dce4',
-categoryBtnActiveBg:'#e8557a', categoryBtnActiveText:'#ffffff',
-storeFootBg:'#ffffff', storeFootText:'#3d1f2e' },
+categoryBtnActiveBg:'#ff8bc2', categoryBtnActiveText:'#ffffff',
+storeFootBg:'#ffffff', storeFootText:'#3d1f2e'
+},
 gradients:{
-background:{type:'solid',value:'#fdf2f8'},
-headerBg:{type:'solid',value:'#fdf2f8'},
+background:{type:'solid',value:'#ff9ed2'},
+headerBg:{type:'solid',value:'#ffc5df'},
 cartBg:{type:'solid',value:'#ffffff'}
 },
-fonts:{ title:'playfair', body:'poppins', button:'poppins', price:'poppins' },
+fonts:{ title:'poppins', body:'poppins', button:'poppins', price:'poppins' },
 logoSettings:{ scale:1, height:60, offsetX:0, offsetY:0 }
 };
 const FONT_OPTIONS=[
