@@ -2546,6 +2546,7 @@ this.retries = 0;
 };
 // --- Sincronización: solo se envían los productos que cambiaron (nunca el catálogo completo) ---
 let _snap = null;           // copia de lo que hay en la nube (ruta -> JSON estable)
+const _borrarExplicito = new Set(); // productos que la administradora eliminó (se borran aunque falten en _snap)
 let _nubeFormatoViejo = false;
 const _CLAVE_MALA = /[.$#\[\]\/]/g;
 function pkey(id){ return String(id).replace(_CLAVE_MALA,'_'); }
@@ -2598,7 +2599,9 @@ async function _doSubirDatosANube(silent=false){
     return {ok:false, error:'Seguridad: el catálogo local está vacío, no se borrará la nube'};
   const upd={}, antes={};
   for(const k in m) if(_snap[k]!==m[k]) upd[k]=m[k];
-  const borrar=Object.keys(_snap).filter(k=>k.startsWith('productos/') && !(k in m) && !omitKeys.has(k));
+  const _bs=new Set(Object.keys(_snap).filter(k=>k.startsWith('productos/') && !(k in m) && !omitKeys.has(k)));
+  _borrarExplicito.forEach(k=>{ if(!(k in m)) _bs.add(k); });
+  const borrar=[..._bs];
   if(borrar.length>25 && !confirm('Vas a ELIMINAR '+borrar.length+' productos de la nube de una sola vez.\n¿Estás segura?'))
     return {ok:false, error:'Eliminación masiva cancelada'};
   const entradas=[];
@@ -2617,6 +2620,16 @@ async function _doSubirDatosANube(silent=false){
       await _patchNube(ep, cuerpo);
       entradas.slice(i,i+TAM).forEach(([k,v])=>{ if(v===null) delete _snap[k]; else _snap[k]=m[k]; });
     }
+    // Verificación: el producto borrado ya no debe existir en la nube
+    if(borrar.length && borrar.length<=10){
+      const base=ep.replace(/\.json$/,'');
+      const tk2=await AUTH.token();
+      for(const k of borrar){
+        const rv=await fetch(base+'/'+k+'.json?auth='+encodeURIComponent(tk2)+'&_='+Date.now(), {cache:'no-store'});
+        if(rv.ok && (await rv.json())!==null) throw new Error('El borrado no se aplicó en la nube. Inténtalo de nuevo');
+      }
+    }
+    borrar.forEach(k=>_borrarExplicito.delete(k));
   }catch(e){
     if(!silent) showToast('❌ Error al guardar en la nube: '+e.message,'danger');
     return {ok:false, error:e.message};
@@ -3830,6 +3843,7 @@ if(!confirm(`¿Eliminar "${p.nombre}"?\nEsta acción no se puede deshacer.`)) re
 _eliminacionesEnCurso.add(pid);
 _mutGeneration++;
 const backup = clone(p);
+_borrarExplicito.add('productos/'+pkey(pid));
 const idxActual = productos.findIndex(x => x.id === pid);
 if(idxActual === -1){
 _eliminacionesEnCurso.delete(pid);
@@ -3859,6 +3873,7 @@ invalidateCloudCache();
 showToast(`🗑️ "${p.nombre}" eliminado localmente`,'warning');
 return;
 }
+_borrarExplicito.delete('productos/'+pkey(pid));
 const idxRestaurar = productos.findIndex(x => x.id === pid);
 if(idxRestaurar === -1){
 productos.push(backup);
