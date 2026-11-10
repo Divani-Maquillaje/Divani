@@ -1604,7 +1604,7 @@ Llenar
 <h4>📞 Datos de contacto</h4>
 <div class="grid-form-2">
 <div class="form-group"><label>Ubicación</label><input type="text" id="persUbicacion" placeholder="Colombia"></div>
-<div class="form-group"><label>WhatsApp (código de país)</label><input type="text" id="persWhatsapp" placeholder="573003896683"></div>
+<div class="form-group"><label>WhatsApp (código de país)</label><input type="text" id="persWhatsapp" placeholder="573125043288"></div>
 <div class="form-group"><label>Instagram (usuario)</label><input type="text" id="persInstagram" placeholder="divani_maquillaje"></div>
 <div class="form-group"><label>TikTok (usuario)</label><input type="text" id="persTiktok" placeholder="divani_maquillaje"></div>
 </div>
@@ -1771,7 +1771,7 @@ let banners = [
 { id:'b1', etiqueta:'Nueva colección', titulo:'Descubre tus nuevos favoritos', sub:'Productos seleccionados para complementar tu estilo y rutina.', promo:'NUEVO', textoBoton:'Comprar ahora', img:IMG.hero, tema:1, cat:'Todos', usarIdentidad:true, imgFit:'cover', imgPos:'center', duracion:3 },
 { id:'b2', etiqueta:'Selección especial', titulo:'Los favoritos de la casa', sub:'Marca productos favoritos y aparecerán aquí.', promo:'TOP', textoBoton:'Ver destacados', img:IMG.swatches, tema:2, cat:'Destacados', usarIdentidad:true, imgFit:'cover', imgPos:'center', duracion:3 }
 ];
-let tiendaConfig = { ubicacion:'Colombia', instagram:'divani_maquillaje', tiktok:'divani_maquillaje', whatsapp:'573003896683' };
+let tiendaConfig = { ubicacion:'Colombia', instagram:'divani_maquillaje', tiktok:'divani_maquillaje', whatsapp:'573125043288' };
 const DEFAULT_PERS = {
 logo: LOGO_DEFAULT, name:'DIVANI', tagline:'Tu tienda de confianza', weight:'normal',
 palette:{ primary:'#e8557a', secondary:'#fce4ec', background:'#fdf2f8', light:'#fce4ec', text:'#3d1f2e', button:'#e8557a', accent:'#f48fb1', adminBtn:'#e8557a',
@@ -4452,7 +4452,7 @@ total+=sub;
 });
 msg+=`
 *TOTAL: ${formatearPrecio(total)}*`;
-const wa=(tiendaConfig.whatsapp||'573003896683').replace(/\D/g,'');
+const wa=(tiendaConfig.whatsapp||'573125043288').replace(/\D/g,'');
 carrito=[]; actualizarCarrito(); toggleCart(false); renderProductos(); renderHome();
 window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'_blank');
 }
