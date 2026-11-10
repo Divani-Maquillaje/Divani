@@ -2467,8 +2467,11 @@ showToast('⚠️ Firebase respondió con error HTTP '+r.status, 'danger');
 }else{ showToast('Base de datos: falta la URL','warning'); }
 if(CLOUD.imgbbKey){
 try{
-const mini='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-await subirImagenImgBB(dataUrlABlob(mini));
+const cv=document.createElement('canvas'); cv.width=cv.height=96;
+const cx=cv.getContext('2d'); const gr=cx.createLinearGradient(0,0,96,96); gr.addColorStop(0,'#ff8fc4'); gr.addColorStop(1,'#e8557a');
+cx.fillStyle=gr; cx.fillRect(0,0,96,96); cx.fillStyle='#fff'; cx.font='bold 40px sans-serif'; cx.fillText('D',30,64);
+const prueba=await new Promise(r=>cv.toBlob(r,'image/png'));
+await subirImagenImgBB(prueba);
 showToast('✅ ImgBB: API key válida','success');
 }catch(e){ showToast('❌ ImgBB: '+e.message,'danger'); }
 }else{ showToast('ImgBB: falta la API key (guárdala en esta pestaña)','warning'); }
@@ -3020,25 +3023,27 @@ return duplicadosCache;
 const grupos = [];
 const visitados = new Set();
 const n = productos.length;
+const _NN = productos.map(p=>normalizarNombreParaComparar(p.nombre));
+const _II = productos.map(p=>obtenerImagenPrincipal(p));
 for(let i=0;i<n;i++){
 if(visitados.has(i)) continue;
 const pi = productos[i];
 const grupo = [i];
 const razones = new Set();
-const ni = normalizarNombreParaComparar(pi.nombre);
-const imgI = obtenerImagenPrincipal(pi);
+const ni = _NN[i];
+const imgI = _II[i];
 for(let j=i+1;j<n;j++){
 if(visitados.has(j)) continue;
 const pj = productos[j];
-const nj = normalizarNombreParaComparar(pj.nombre);
-const imgJ = obtenerImagenPrincipal(pj);
+const nj = _NN[j];
+const imgJ = _II[j];
 let esDup = false;
 let razon = '';
 if(ni && nj && ni === nj){
 esDup = true;
 razon = 'Mismo nombre';
 }
-else if(ni && nj && ni.length>3 && nj.length>3){
+else if(ni && nj && ni.length>3 && nj.length>3 && Math.abs(ni.length-nj.length) <= 0.18*Math.max(ni.length,nj.length)){
 const sim = similitudLevenshtein(ni, nj);
 if(sim >= 0.82){
 esDup = true;
@@ -3567,7 +3572,7 @@ nuevos.forEach(p=>{ const c=buildCard(p,'nv'); if(c) rowN.appendChild(c); });
 secN.style.display=nuevos.length?'':'none';
 }
 function refreshPublic(){ renderHome(); renderProductos(); initHero(); programarSyncNube(); saveCache(); }
-function refreshAdminViews(){ renderInventario(); renderDestacadosAdmin(); renderBannersAdmin(); renderDashboard(); renderDuplicados(); }
+function refreshAdminViews(){ if(!adminAutenticado) return; renderInventario(); renderDestacadosAdmin(); renderBannersAdmin(); renderDashboard(); renderDuplicados(); }
 function cambiarImagenCard(cardId,dir){
 const cont=document.getElementById(cardId); if(!cont) return;
 const imgs=cont.querySelectorAll('img'), dots=cont.querySelectorAll('.dot');
