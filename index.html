@@ -326,6 +326,13 @@ color:var(--divani-on-primary);box-shadow:0 12px 28px color-mix(in srgb,var(--di
 @media(max-width:768px){.cart{width:50vw;min-width:280px;max-width:50vw}}
 @media(max-width:480px){.cart{width:50vw;min-width:260px;max-width:50vw;padding:18px 14px calc(18px + var(--safe-bottom))}}
 @media(max-width:360px){.cart{min-width:240px;padding:16px 12px calc(16px + var(--safe-bottom))}}
+@media(max-width:768px){
+.cart{top:50%;left:50%;right:auto;bottom:auto;width:calc(100vw - 32px);min-width:0;max-width:480px;height:auto;max-height:86vh;max-height:86dvh;border-radius:24px;padding:22px 20px calc(22px + var(--safe-bottom));overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.30);transform:translate(-50%,-46%) scale(.96)}
+.cart.open{transform:translate(-50%,-50%) scale(1)}
+#carrito{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.cart .btn-buy{white-space:nowrap;font-size:13.5px;padding:14px 10px;gap:8px;letter-spacing:0}
+}
+@media(max-width:360px){.cart{padding:18px 16px calc(18px + var(--safe-bottom))}.cart .btn-buy{font-size:12.5px}}
 .cart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-shrink:0;padding-bottom:12px;border-bottom:1px solid var(--gray-light)}
 .cart-header h2{margin:0;font-family:var(--font-title);font-size:clamp(18px,4.5vw,22px);font-weight:500;color:var(--divani-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .close-cart{background:var(--gray-light);border:none;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:500;color:var(--divani-text);transition:all .2s;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -1647,7 +1654,7 @@ const CLOUD_CONFIG = {
   // Base de datos pública de lectura (la tienda lee de aquí). Escribir exige iniciar sesión.
   DATABASE_URL: 'https://divani-1ab68-default-rtdb.firebaseio.com',
   // Clave WEB de Firebase (no es secreta: solo identifica el proyecto). La seguridad real está en las reglas.
-  FIREBASE_API_KEY: 'AIzaSyAMvgRGpgE-RgewivPbfHyNi8nU7tdrzP8',
+  FIREBASE_API_KEY: 'AIzaSyAMvgRGpgE-RgewivPbfHyNi8nU7tdrzP8EY',
   AUTH_URL: 'https://identitytoolkit.googleapis.com/v1/',
   TOKEN_URL: 'https://securetoken.googleapis.com/v1/token',
   // Correo(s) autorizados como administradora (las reglas de Firebase validan lo mismo en el servidor)
