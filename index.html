@@ -763,10 +763,16 @@ color:var(--divani-on-primary);box-shadow:0 12px 28px color-mix(in srgb,var(--di
 @media(max-width:480px){.card-top,.hscroll .card-top{padding:6px!important}.card-top>img,.card-gallery{top:6px;left:6px;width:calc(100% - 12px);height:calc(100% - 12px)}.card{contain-intrinsic-size:0 300px}}
 .search-go{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;border:none;background:var(--divani-primary);color:var(--divani-on-primary,#fff);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;box-shadow:0 3px 10px color-mix(in srgb,var(--divani-primary) 30%, transparent);transition:transform .15s,filter .15s}
 .search-go svg{width:16px;height:16px}
+.search-clear{position:absolute;left:7px;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;border:none;background:#fff;color:var(--divani-text);display:none;align-items:center;justify-content:center;cursor:pointer;z-index:2;padding:0}
+.search-clear svg{width:15px;height:15px}
+.search-clear:hover{background:var(--light-pink)}
+#buscadorInput:not(:placeholder-shown) ~ .search-clear{display:flex}
+.search-marca{background:var(--light-pink)}
 .search-go:hover{filter:brightness(1.08)}
 .search-go:active{transform:translateY(-50%) scale(.93)}
 #buscadorInput{padding-right:50px!important}
 @media(max-width:430px){.search-go{width:34px;height:34px;right:4px}}
+.search-sep{grid-column:1/-1;margin:14px 2px 2px;padding-top:14px;border-top:1px solid color-mix(in srgb,var(--divani-primary) 18%, transparent);font-size:13px;font-weight:500;color:var(--divani-text);letter-spacing:.2px}
 @media(max-width:900px){.admin-content{grid-template-columns:1fr;height:auto;max-height:100dvh}.admin-sidebar{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:12px;gap:6px;border-bottom:1px solid var(--gray-border)}.admin-brand{display:none}.admin-nav-menu{flex-direction:row;gap:6px}.admin-nav-item{white-space:nowrap;font-size:12px;padding:9px 12px}.admin-nav-item .nav-ico{width:22px;height:22px;font-size:12px}}
 @media(max-width:640px){.admin-content{border-radius:var(--radius-lg);height:100dvh}.admin-body{padding:14px 12px}.dashboard-card{padding:16px 14px}.stats-grid{grid-template-columns:repeat(2,1fr)}.dup-items{grid-template-columns:1fr}}
 </style>
@@ -797,6 +803,7 @@ onerror="this.onerror=null;if(!this.src||this.src===''){this.style.display='none
 <div class="search-wrap">
 <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
 <input type="text" id="buscadorInput" placeholder="¿Qué buscas?" autocomplete="off" enterkeyhint="search">
+<button type="button" id="btnLimpiar" class="search-clear" aria-label="Borrar búsqueda" title="Borrar" onclick="limpiarBusqueda()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 <button type="button" id="btnBuscar" class="search-go" aria-label="Buscar" title="Buscar" onclick="confirmarBusqueda()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
 <div id="resultadoBusqueda"></div>
 </div>
@@ -3071,19 +3078,54 @@ return {match:false, score:0, type:'none'};
 function buscarProductosFuzzy(query,max){
 const q=normalizarTexto(query);
 if(!q||q.length<2) return [];
+const consultas=[q];
+BUSQUEDA_OTROS_NOMBRES.forEach(par=>{ const a=normalizarTexto(par[0]), b=normalizarTexto(par[1]); if(a&&b&&(' '+q+' ').includes(' '+a+' ')){ const alt=(' '+q+' ').replace(' '+a+' ',' '+b+' ').trim(); if(consultas.indexOf(alt)===-1) consultas.push(alt); } });
+const listas=consultas.map(c=>{ let w=c.split(' ').filter(Boolean); const sig=w.filter(x=>!BUSQUEDA_VACIAS.has(x)&&x.length>=2); return {frase:c, palabras:sig.length?sig:w}; });
 const resultados=[];
 productos.forEach(p=>{
 if(!esVisible(p)) return;
-const campos=[p.nombre, p.categoria, p.promo||''].join(' ');
-const r=fuzzyMatch(q, campos);
-if(r.match){
-resultados.push({producto:p, score:r.score, type:r.type});
-}
+const t=normalizarTexto([p.nombre, p.categoria, p.promo||'', (p.tonos||[]).map(x=>x&&x.n||'').join(' ')].join(' '));
+const tw=t.split(' ');
+let mejor=null;
+listas.forEach(L=>{
+let r=null;
+if(t.includes(L.frase)) r={nivel:1, score:t.startsWith(L.frase)?100:95, type:'contains'};
+else{
+let suma=0, ok=0, difuso=false, fuerte=false;
+L.palabras.forEach(qw=>{
+const pw=_puntajePalabra(qw, tw);
+if(pw.s>0){ ok++; suma+=pw.s; if(pw.f) difuso=true; if(qw.length>=4) fuerte=true; }
 });
-resultados.sort((a,b)=>b.score-a.score);
-const mejor=resultados.length?resultados[0].score:0;
-const filtrados=mejor>=70?resultados.filter(r=>r.score>=60):resultados;
-return filtrados.slice(0,max||12);
+if(ok===L.palabras.length&&ok>0) r={nivel:1, score:Math.round(suma/ok*0.9), type:difuso?'fuzzy':'contains'};
+else if(ok>0&&fuerte&&L.palabras.length>=2) r={nivel:2, score:Math.round(suma/L.palabras.length*0.6), type:'fuzzy'};
+}
+if(r&&(!mejor||r.nivel<mejor.nivel||(r.nivel===mejor.nivel&&r.score>mejor.score))) mejor=r;
+});
+if(mejor) resultados.push({producto:p, score:mejor.score, type:mejor.type, nivel:mejor.nivel});
+});
+if(resultados.some(r=>r.nivel===1&&r.type!=='fuzzy')) resultados.forEach(r=>{ if(r.nivel===1&&r.type==='fuzzy') r.nivel=2; });
+resultados.sort((a,b)=>(a.nivel-b.nivel)||(b.score-a.score)||String(a.producto.nombre).localeCompare(String(b.producto.nombre)));
+return max?resultados.slice(0,max):resultados;
+}
+/* Otros nombres con los que la gente busca una marca o producto: [lo que escriben, cómo está en la tienda] */
+var BUSQUEDA_OTROS_NOMBRES=[['ritual botanico','origen botanico'],['ritual','origen botanico'],['la pocion','pocion'],['ruby rose','rubi rose'],['rubi rose','ruby rose'],['anik','ani-k'],['ani k','ani-k'],['click hair','clickhair'],['pestanina','rimel'],['rimel','pestanina'],['mascara de pestanas','pestanina']];
+var BUSQUEDA_VACIAS=new Set(['la','el','los','las','de','del','para','con','y','en','un','una','lo','al','por','x']);
+function _raizPalabra(w){ return w.length>4?w.replace(/(es|s)$/,''):w; }
+function _puntajePalabra(qw, palabras){
+let s=0, f=false;
+const rq=_raizPalabra(qw);
+for(const w of palabras){
+if(!w) continue;
+let v=0, vf=false;
+if(w===qw) v=100;
+else if(_raizPalabra(w)===rq) v=92;
+else if(w.startsWith(qw)) v=85;
+else if(qw.length>=3&&w.includes(qw)) v=70;
+else if(w.length>=4&&qw.startsWith(w)&&qw.length-w.length<=2) v=60;
+else if(qw.length>=4&&w.length>=4&&Math.abs(qw.length-w.length)<=2){ const sim=1-(levenshtein(qw,w)/Math.max(qw.length,w.length)); if(sim>=0.75){ v=Math.round(sim*70); vf=true; } }
+if(v>s){ s=v; f=vf; if(s===100) break; }
+}
+return {s:s, f:f};
 }
 function detectarDuplicados(force=false){
 const currentVersion = productos.length + productos.reduce((acc,p)=>acc+(p.nombre||'').length,0);
@@ -3540,6 +3582,7 @@ catalogFilteredIndices = indices;
 catalogPage = 1;
 }
 function renderProductos(lista=null){
+_busquedaTurno=(_busquedaTurno||0)+1;
 if(!lista) _busquedaActiva=false;
 const cont=document.getElementById('productos');
 cont.innerHTML='';
@@ -4542,6 +4585,7 @@ const q=e.target.value;
 _searchDebounce=setTimeout(()=>ejecutarBusqueda(q), 180);
 });
 function ejecutarBusqueda(q){
+_busquedaTurno=(_busquedaTurno||0)+1;
 const resDiv=document.getElementById('resultadoBusqueda');
 const qn=normalizarTexto(q);
 if(!qn||qn.length<2){
@@ -4553,7 +4597,7 @@ else { if(vistaActual==='catalog') restaurarTituloCatalogo(); if(vistaActual==='
 return;
 }
 if(_vistaAntesBusqueda===null) _vistaAntesBusqueda=vistaActual;
-const resultados=buscarProductosFuzzy(q,200);
+const resultados=buscarProductosFuzzy(q);
 _busquedaActiva=true;
 {const _lm=document.getElementById('loadMoreBtn'); if(_lm) _lm.style.display='none';}
 if(!resultados.length){
@@ -4573,7 +4617,12 @@ hint=`<div class="search-hint">💡 ¿Quizás quisiste decir: <b>${esc(best.prod
 } else if(best.type==='fuzzy'){
 hint=`<div class="search-hint">✨ Mostrando resultados relacionados con tu búsqueda</div>`;
 }
-resDiv.innerHTML=hint+resultados.slice(0,10).map(r=>`
+const marcasHtml=marcasDeBusqueda(q).map(m=>`
+<div class="search-result-item search-marca" onclick="filtrarCategoria(categorias[${m.i}])">
+<div><div style="font-weight:600;color:var(--divani-primary);font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;">Marca</div><div style="font-size:13px;font-weight:500;">${esc(m.nombre)}</div></div>
+<div style="font-size:12px;color:var(--divani-primary);white-space:nowrap;">Ver los ${m.n} →</div>
+</div>`).join('');
+resDiv.innerHTML=hint+marcasHtml+resultados.slice(0,8).map(r=>`
 <div class="search-result-item" onclick="seleccionarBusqueda('${r.producto.id}')">
 <div><div style="font-weight:600;color:var(--divani-primary);font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;">${esc(r.producto.categoria)}</div><div style="font-size:13px;">${esc(r.producto.nombre)}</div></div>
 <div style="font-weight:500;color:var(--divani-text);white-space:nowrap;">${formatearPrecio(precioFinalDe(r.producto))}</div>
@@ -4584,11 +4633,47 @@ document.getElementById('sectionTitle').textContent='Resultados';
 document.getElementById('sectionSub').textContent=`Buscando: "${esc(q.trim())}"`;
 const cont=document.getElementById('productos');
 cont.innerHTML='';
-resultados.forEach(r=>{
+const _turno=_busquedaTurno;
+const hayExactos=resultados.some(r=>r.nivel===1);
+let _sep=false;
+const pintar=(desde)=>{
+if(_turno!==_busquedaTurno) return;
+const hasta=Math.min(desde+40, resultados.length);
+for(let k=desde;k<hasta;k++){
+const r=resultados[k];
+if(hayExactos&&r.nivel===2&&!_sep){ _sep=true; const d=document.createElement('div'); d.className='search-sep'; d.textContent='También te puede interesar'; cont.appendChild(d); }
 const card=buildCard(r.producto,'srch');
 if(card) cont.appendChild(card);
+}
+if(hasta<resultados.length) setTimeout(()=>pintar(hasta), 30);
+};
+pintar(0);
+const nEx=resultados.filter(r=>r.nivel===1).length;
+const nTot=hayExactos?nEx:resultados.length;
+document.getElementById('countLabel').textContent=`${nTot} ${nTot===1?'producto':'productos'}`;
+}
+var _busquedaTurno=0;
+function limpiarBusqueda(){
+const inp=document.getElementById('buscadorInput');
+inp.value='';
+clearTimeout(_searchDebounce);
+ejecutarBusqueda('');
+inp.focus();
+}
+function marcasDeBusqueda(query){
+let q=' '+normalizarTexto(query)+' ';
+BUSQUEDA_OTROS_NOMBRES.forEach(par=>{ const a=' '+normalizarTexto(par[0])+' '; if(q.includes(a)) q+=normalizarTexto(par[1])+' '; });
+const words=q.trim().split(' ').filter(w=>w.length>=3&&!BUSQUEDA_VACIAS.has(w));
+if(!words.length) return [];
+const out=[];
+categorias.forEach((c,i)=>{
+const cn=normalizarTexto(c);
+const cw=cn.replace(/[^a-z0-9 ]/g,' ').split(' ').filter(Boolean);
+if(!words.some(w=>cw.some(x=>x.startsWith(w))||cn.replace(/[^a-z0-9]/g,'')===w.replace(/[^a-z0-9]/g,''))) return;
+const n=productos.filter(p=>esVisible(p)&&p.categoria===c).length;
+if(n) out.push({i:i, nombre:c, n:n});
 });
-document.getElementById('countLabel').textContent=`${resultados.length} ${resultados.length===1?'producto':'productos'}`;
+return out.slice(0,2);
 }
 function confirmarBusqueda(){
 const inp=document.getElementById('buscadorInput');
