@@ -761,6 +761,12 @@ color:var(--divani-on-primary);box-shadow:0 12px 28px color-mix(in srgb,var(--di
 .card-gallery img{width:100%;height:100%}
 .card{contain-intrinsic-size:0 400px}
 @media(max-width:480px){.card-top,.hscroll .card-top{padding:6px!important}.card-top>img,.card-gallery{top:6px;left:6px;width:calc(100% - 12px);height:calc(100% - 12px)}.card{contain-intrinsic-size:0 300px}}
+.search-go{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;border:none;background:var(--divani-primary);color:var(--divani-on-primary,#fff);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;box-shadow:0 3px 10px color-mix(in srgb,var(--divani-primary) 30%, transparent);transition:transform .15s,filter .15s}
+.search-go svg{width:16px;height:16px}
+.search-go:hover{filter:brightness(1.08)}
+.search-go:active{transform:translateY(-50%) scale(.93)}
+#buscadorInput{padding-right:50px!important}
+@media(max-width:430px){.search-go{width:34px;height:34px;right:4px}}
 @media(max-width:900px){.admin-content{grid-template-columns:1fr;height:auto;max-height:100dvh}.admin-sidebar{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:12px;gap:6px;border-bottom:1px solid var(--gray-border)}.admin-brand{display:none}.admin-nav-menu{flex-direction:row;gap:6px}.admin-nav-item{white-space:nowrap;font-size:12px;padding:9px 12px}.admin-nav-item .nav-ico{width:22px;height:22px;font-size:12px}}
 @media(max-width:640px){.admin-content{border-radius:var(--radius-lg);height:100dvh}.admin-body{padding:14px 12px}.dashboard-card{padding:16px 14px}.stats-grid{grid-template-columns:repeat(2,1fr)}.dup-items{grid-template-columns:1fr}}
 </style>
@@ -790,7 +796,8 @@ onerror="this.onerror=null;if(!this.src||this.src===''){this.style.display='none
 </div>
 <div class="search-wrap">
 <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-<input type="text" id="buscadorInput" placeholder="¿Qué buscas?" autocomplete="off">
+<input type="text" id="buscadorInput" placeholder="¿Qué buscas?" autocomplete="off" enterkeyhint="search">
+<button type="button" id="btnBuscar" class="search-go" aria-label="Buscar" title="Buscar" onclick="confirmarBusqueda()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
 <div id="resultadoBusqueda"></div>
 </div>
 </div>
@@ -3061,7 +3068,7 @@ if(finalScore>=40) return {match:true, score:finalScore, type:'fuzzy'};
 }
 return {match:false, score:0, type:'none'};
 }
-function buscarProductosFuzzy(query){
+function buscarProductosFuzzy(query,max){
 const q=normalizarTexto(query);
 if(!q||q.length<2) return [];
 const resultados=[];
@@ -3074,7 +3081,9 @@ resultados.push({producto:p, score:r.score, type:r.type});
 }
 });
 resultados.sort((a,b)=>b.score-a.score);
-return resultados.slice(0,12);
+const mejor=resultados.length?resultados[0].score:0;
+const filtrados=mejor>=70?resultados.filter(r=>r.score>=60):resultados;
+return filtrados.slice(0,max||12);
 }
 function detectarDuplicados(force=false){
 const currentVersion = productos.length + productos.reduce((acc,p)=>acc+(p.nombre||'').length,0);
@@ -3531,6 +3540,7 @@ catalogFilteredIndices = indices;
 catalogPage = 1;
 }
 function renderProductos(lista=null){
+if(!lista) _busquedaActiva=false;
 const cont=document.getElementById('productos');
 cont.innerHTML='';
 const loadMoreBtn = document.getElementById('loadMoreBtn');
@@ -3574,7 +3584,9 @@ if (loadMoreBtn) {
 loadMoreBtn.style.display = (end < total) ? 'block' : 'none';
 }
 }
+var _busquedaActiva=false;
 function cargarMasProductos() {
+if(_busquedaActiva) return;
 catalogPage++;
 const cont = document.getElementById('productos');
 const total = catalogFilteredIndices.length;
@@ -4500,6 +4512,7 @@ function comprar(){
 if(!carrito.length){ showToast('Tu carrito está vacío','warning'); return; }
 const nombreTienda=pers.name||'DIVANI';
 let msg=`*NUEVO PEDIDO - ${nombreTienda}*
+
 *PRODUCTOS*
 `;
 let total=0;
@@ -4510,12 +4523,9 @@ const unit=precioFinalDe(p);
 const sub=unit*row.qty;
 msg+=`• ${row.qty} × ${p.nombre}`;
 if(row.tono && row.tono.n){
-msg+=`
-Tono: ${row.tono.n}`;
+msg+=` (Tono: ${row.tono.n})`;
 }
-msg+=`
-Precio unitario: ${formatearPrecio(unit)}
-Subtotal: ${formatearPrecio(sub)}
+msg+=` ${formatearPrecio(unit)}${row.qty>1?' c/u':''}
 `;
 total+=sub;
 });
@@ -4535,6 +4545,7 @@ function ejecutarBusqueda(q){
 const resDiv=document.getElementById('resultadoBusqueda');
 const qn=normalizarTexto(q);
 if(!qn||qn.length<2){
+_busquedaActiva=false;
 resDiv.style.display='none';
 const _v=_vistaAntesBusqueda; _vistaAntesBusqueda=null;
 if(_v==='home'){ restaurarTituloCatalogo(); mostrarVista('home'); renderHome(); }
@@ -4542,7 +4553,9 @@ else { if(vistaActual==='catalog') restaurarTituloCatalogo(); if(vistaActual==='
 return;
 }
 if(_vistaAntesBusqueda===null) _vistaAntesBusqueda=vistaActual;
-const resultados=buscarProductosFuzzy(q);
+const resultados=buscarProductosFuzzy(q,200);
+_busquedaActiva=true;
+{const _lm=document.getElementById('loadMoreBtn'); if(_lm) _lm.style.display='none';}
 if(!resultados.length){
 resDiv.innerHTML='<div style="padding:22px;text-align:center;color:#94a3b8;"><b>No encontramos productos</b><p style="margin:6px 0 0;font-size:12px;">Intenta con otra palabra o revisa la ortografía.</p></div>';
 resDiv.style.display='block';
@@ -4560,7 +4573,7 @@ hint=`<div class="search-hint">💡 ¿Quizás quisiste decir: <b>${esc(best.prod
 } else if(best.type==='fuzzy'){
 hint=`<div class="search-hint">✨ Mostrando resultados relacionados con tu búsqueda</div>`;
 }
-resDiv.innerHTML=hint+resultados.map(r=>`
+resDiv.innerHTML=hint+resultados.slice(0,10).map(r=>`
 <div class="search-result-item" onclick="seleccionarBusqueda('${r.producto.id}')">
 <div><div style="font-weight:600;color:var(--divani-primary);font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;">${esc(r.producto.categoria)}</div><div style="font-size:13px;">${esc(r.producto.nombre)}</div></div>
 <div style="font-weight:500;color:var(--divani-text);white-space:nowrap;">${formatearPrecio(precioFinalDe(r.producto))}</div>
@@ -4577,6 +4590,24 @@ if(card) cont.appendChild(card);
 });
 document.getElementById('countLabel').textContent=`${resultados.length} ${resultados.length===1?'producto':'productos'}`;
 }
+function confirmarBusqueda(){
+const inp=document.getElementById('buscadorInput');
+const q=inp.value;
+if(normalizarTexto(q).length<2){ inp.focus(); return; }
+clearTimeout(_searchDebounce);
+ejecutarBusqueda(q);
+document.getElementById('resultadoBusqueda').style.display='none';
+inp.blur();
+const tit=document.getElementById('sectionTitle');
+const hd=document.querySelector('header');
+if(tit){
+const y=tit.getBoundingClientRect().top+window.scrollY-((hd&&getComputedStyle(hd).position!=='static')?hd.offsetHeight:0)-14;
+window.scrollTo({top:Math.max(0,y),behavior:'smooth'});
+}
+}
+document.getElementById('buscadorInput').addEventListener('keydown',(e)=>{
+if(e.key==='Enter'){ e.preventDefault(); confirmarBusqueda(); }
+});
 function seleccionarBusqueda(id){
 const p=productos.find(x=>x.id===id);
 if(p){
