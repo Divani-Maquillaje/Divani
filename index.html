@@ -6,7 +6,7 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
 <meta name="theme-color" content="#e8557a">
-<title>DIVANI · La tienda más rosadita de todo Tunja</title>
+<title>DIVANI · Tienda de maquillaje</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23e8557a'/%3E%3Ctext x='50' y='70' font-family='Georgia, serif' font-size='58' fill='%23ffffff' text-anchor='middle'%3ED%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
@@ -773,6 +773,16 @@ color:var(--divani-on-primary);box-shadow:0 12px 28px color-mix(in srgb,var(--di
 #buscadorInput{padding-right:50px!important}
 @media(max-width:430px){.search-go{width:34px;height:34px;right:4px}}
 .search-sep{grid-column:1/-1;margin:14px 2px 2px;padding-top:14px;border-top:1px solid color-mix(in srgb,var(--divani-primary) 18%, transparent);font-size:13px;font-weight:500;color:var(--divani-text);letter-spacing:.2px}
+.agotado-badge{background:#6b7280;color:#fff;font-size:9px;font-weight:600;padding:4px 10px;border-radius:999px;letter-spacing:1.6px;text-transform:uppercase;box-shadow:0 4px 12px rgba(55,65,81,.30)}
+.card.agotado .card-top>img,.card.agotado .card-gallery img{filter:grayscale(.8);opacity:.5}
+.card.agotado .card-info h3,.card.agotado .price{opacity:.65}
+.tono-swatch.agotado{opacity:.4;position:relative}
+.tono-swatch.agotado::after{content:'';position:absolute;inset:0;border-radius:50%;background:linear-gradient(to bottom right,transparent 45%,#6b7280 45%,#6b7280 55%,transparent 55%)}
+.tono-ago-lbl{color:#6b7280;font-weight:600;font-size:11px;letter-spacing:.5px}
+.detail-add.agotado,.detail-add:disabled{background:#9ca3af;box-shadow:none;cursor:not-allowed;transform:none}
+.detail-add.agotado:hover,.detail-add:disabled:hover{background:#9ca3af;transform:none}
+.tono-ago{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
+.tono-ago input{width:15px;height:15px;accent-color:#6b7280;cursor:pointer}
 @media(max-width:900px){.admin-content{grid-template-columns:1fr;height:auto;max-height:100dvh}.admin-sidebar{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:12px;gap:6px;border-bottom:1px solid var(--gray-border)}.admin-brand{display:none}.admin-nav-menu{flex-direction:row;gap:6px}.admin-nav-item{white-space:nowrap;font-size:12px;padding:9px 12px}.admin-nav-item .nav-ico{width:22px;height:22px;font-size:12px}}
 @media(max-width:640px){.admin-content{border-radius:var(--radius-lg);height:100dvh}.admin-body{padding:14px 12px}.dashboard-card{padding:16px 14px}.stats-grid{grid-template-columns:repeat(2,1fr)}.dup-items{grid-template-columns:1fr}}
 </style>
@@ -956,7 +966,7 @@ Información de la tienda
 </div>
 <button class="detail-add" id="detailAddBtn" onclick="agregarDesdeDetalle()">
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l1.5 13h-15L6 7Z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/></svg>
-Agregar al Carrito
+<span class="add-txt">Agregar al Carrito</span>
 </button>
 </div>
 </div>
@@ -1016,6 +1026,13 @@ Agregar al Carrito
 <div class="switch-col">
 <label class="switch"><input type="checkbox" id="editVisible" onchange="syncSwLbl('editVisible','editVisibleLbl')"><span class="switch-slider"></span></label>
 <span class="sw-lbl on" id="editVisibleLbl">● Visible</span>
+</div>
+</div>
+<div class="estado-box">
+<div class="estado-txt"><b>Producto agotado</b><small>ON: se ve en la tienda con el aviso "Agotado" y no se puede comprar</small></div>
+<div class="switch-col">
+<label class="switch"><input type="checkbox" id="editAgotado" onchange="syncAgoLbl('editAgotado','editAgotadoLbl')"><span class="switch-slider"></span></label>
+<span class="sw-lbl on" id="editAgotadoLbl">● Disponible</span>
 </div>
 </div>
 <div class="form-group"><label>⭐ Producto destacado</label>
@@ -1169,6 +1186,13 @@ Tus cambios se guardan en la nube de forma segura.
 <span class="sw-lbl on" id="prodVisibleLbl">● Visible</span>
 </div>
 </div>
+<div class="estado-box">
+<div class="estado-txt"><b>Producto agotado</b><small>ON: se ve en la tienda con el aviso "Agotado" y no se puede comprar</small></div>
+<div class="switch-col">
+<label class="switch"><input type="checkbox" id="prodAgotado" onchange="syncAgoLbl('prodAgotado','prodAgotadoLbl')"><span class="switch-slider"></span></label>
+<span class="sw-lbl on" id="prodAgotadoLbl">● Disponible</span>
+</div>
+</div>
 <div class="form-group"><label>⭐ Producto destacado (aparece en la colección Destacados)</label>
 <label class="switch"><input type="checkbox" id="prodDestacado"><span class="switch-slider"></span></label>
 <small>Los destacados se muestran en la sección Destacados de la tienda y puedes enlazarlos desde un banner.</small>
@@ -1191,6 +1215,7 @@ Tus cambios se guardan en la nube de forma segura.
 <button class="inv-chip active" onclick="filtrarInventario('todos',this)">Todos</button>
 <button class="inv-chip" onclick="filtrarInventario('visibles',this)">✅ Visibles</button>
 <button class="inv-chip" onclick="filtrarInventario('ocultos',this)">👁️ Ocultos</button>
+<button class="inv-chip" onclick="filtrarInventario('agotados',this)">🚫 Agotados</button>
 <button class="inv-chip" onclick="filtrarInventario('destacados',this)">⭐ Destacados</button>
 <button class="inv-chip" onclick="filtrarInventario('no-destacados',this)">No destacados</button>
 <button class="inv-chip" onclick="filtrarInventario('con-promo',this)">💬 Con promo</button>
@@ -1215,7 +1240,7 @@ Tus cambios se guardan en la nube de forma segura.
 <div style="overflow-x:auto;">
 <table class="tbl">
 <thead><tr>
-<th>Producto</th><th>Categoría</th><th>Precio</th><th>Visible</th><th>Destacado</th><th>Acciones</th>
+<th>Producto</th><th>Categoría</th><th>Precio</th><th>Visible</th><th>Destacado</th><th>Agotado</th><th>Acciones</th>
 </tr></thead>
 <tbody id="tablaInventario"></tbody>
 </table>
@@ -2100,7 +2125,7 @@ if(drawerText) drawerText.style.display = 'none';
 const fb=document.getElementById('footBrand'); if(fb) fb.textContent=cfg.name;
 const fbb=document.getElementById('footBottomBrand'); if(fbb) fbb.textContent=cfg.name;
 const ft=document.getElementById('footTag'); if(ft) ft.textContent=cfg.tagline;
-document.title=cfg.name+' · La tienda más rosadita de todo Tunja';
+document.title=(cfg.name||'DIVANI')+((cfg.tagline||'').trim()?' · '+cfg.tagline.trim():'');
 }
 function updatePv(cfg){
 const pvL=document.getElementById('pvLogo');
@@ -2880,6 +2905,18 @@ function limpiarPrecio(p){ if(typeof p==='number') return p; const n=parseFloat(
 function formatearPrecio(n){ const num = typeof n==='string' ? limpiarPrecio(n) : n; return '$'+(num||0).toLocaleString('es-CO'); }
 function precioFinalDe(p){ const num=limpiarPrecio(p.precio); const d=p.descuento>0?p.descuento:0; return Math.round(num*(100-d)/100); }
 function esVisible(p){ return p && p.visible!==false; }
+function tonoAgotado(t){ return !!(t && t.a===true); }
+function estaAgotado(p){
+if(!p) return false;
+if(p.agotado===true) return true;
+const t=tonosDe(p);
+return t.length>0 && t.every(tonoAgotado);
+}
+function primerTonoDisponible(p){
+const t=tonosDe(p);
+const i=t.findIndex(x=>!tonoAgotado(x));
+return i>=0?i:0;
+}
 function prepararCacheBusqueda(){ productos.forEach(p=>{ p._cache=(p.nombre+' '+p.categoria+' '+(p.promo||'')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }); }
 function limpiarUrlImagen(u){
   if(typeof u!=='string') return '';
@@ -2956,6 +2993,11 @@ void b.offsetWidth;
 b.classList.add('bump');
 }
 }
+function syncAgoLbl(inputId,lblId){
+const on=document.getElementById(inputId).checked;
+const l=document.getElementById(lblId);
+l.textContent=on?'● Agotado':'● Disponible'; l.className='sw-lbl '+(on?'off':'on');
+}
 function syncSwLbl(inputId,lblId){
 const on=document.getElementById(inputId).checked;
 const l=document.getElementById(lblId);
@@ -2986,12 +3028,12 @@ sel.value=fotos.includes(actual)?actual:'';
 row.dataset.foto=sel.value;
 const th=row.querySelector('img.tono-th'); if(th){ th.src=sel.value||''; th.style.visibility=sel.value?'visible':'hidden'; }
 }
-function addTonoRow(containerId, nombre='', color='#e8557a', foto=''){
+function addTonoRow(containerId, nombre='', color='#e8557a', foto='', agotado=false){
 const cont=document.getElementById(containerId); if(!cont) return;
 const row=document.createElement('div');
 row.className='tono-row';
 row.dataset.foto=foto||'';
-row.innerHTML=`<input type="text" placeholder="Nombre del tono (ej: Rosa Encanto)" value="${esc(nombre)}"><input type="color" value="${color}"><button type="button" class="del-tono" title="Quitar tono">✕</button><div class="tono-foto-wrap"><img class="tono-th" alt="" style="visibility:hidden"><select class="tono-foto" aria-label="Foto de este tono"></select></div>`;
+row.innerHTML=`<input type="text" placeholder="Nombre del tono (ej: Rosa Encanto)" value="${esc(nombre)}"><input type="color" value="${color}"><button type="button" class="del-tono" title="Quitar tono">✕</button><label class="tono-ago"><input type="checkbox" class="tono-agotado" ${agotado?'checked':''}> Agotado</label><div class="tono-foto-wrap"><img class="tono-th" alt="" style="visibility:hidden"><select class="tono-foto" aria-label="Foto de este tono"></select></div>`;
 row.querySelector('.del-tono').onclick=()=>row.remove();
 const sel=row.querySelector('select.tono-foto');
 const refrescar=()=>{ row.dataset.foto=sel.value||row.dataset.foto; };
@@ -3011,7 +3053,8 @@ const c=r.querySelector('input[type=color]').value;
 const sel=r.querySelector('select.tono-foto');
 const url=(sel&&sel.value)||r.dataset.foto||'';
 const idx=url?lista.indexOf(url):-1;
-if(n) out.push({n, c, i:idx});
+const ago=r.querySelector('input.tono-agotado');
+if(n){ const o={n, c, i:idx}; if(ago&&ago.checked) o.a=true; out.push(o); }
 });
 return out.length?out:undefined;
 }
@@ -3554,11 +3597,14 @@ let badgesHtml = '<div class="card-badges">';
 if(hasOff) badgesHtml += `<span class="nuevo-badge">-${p.descuento}%</span>`;
 if(p.destacado) badgesHtml += `<span class="destacado-badge">Destacado</span>`;
 if(hasTonos) badgesHtml += `<span class="tonos-badge">${tonos.length} tono${tonos.length>1?'s':''}</span>`;
+const sinStock=estaAgotado(p);
+if(sinStock){ badgesHtml += `<span class="agotado-badge">Agotado</span>`; card.classList.add('agotado'); }
+else if(hasTonos && tonos.some(tonoAgotado)) badgesHtml += `<span class="tonos-badge">${tonos.filter(x=>!tonoAgotado(x)).length} disponible${tonos.filter(x=>!tonoAgotado(x)).length>1?'s':''}</span>`;
 badgesHtml += '</div>';
 card.innerHTML=`
 <div class="card-top">${galleryHtml}
 ${badgesHtml}
-<button class="fab-add" title="Agregar al carrito" aria-label="Agregar al carrito" onclick="event.stopPropagation();agregarAlCarroYAbrir(${realIdx})">${PLUS_SVG}</button>
+${sinStock?'':`<button class="fab-add" title="Agregar al carrito" aria-label="Agregar al carrito" onclick="event.stopPropagation();agregarAlCarroYAbrir(${realIdx})">${PLUS_SVG}</button>`}
 </div>
 <div class="card-info">
 <h3>${esc(p.nombre)}</h3>
@@ -3811,6 +3857,7 @@ categoria:document.getElementById('prodCategoria').value,
 imagenes: imagenes, visible };
 if(descuento>0) nuevo.descuento=Math.min(90,descuento);
 if(destacado) nuevo.destacado=true;
+if(document.getElementById('prodAgotado').checked) nuevo.agotado=true;
 if(promo) nuevo.promo=promo;
 const tonos=readTonoRows('prodTonosList', imagenes);
 if(tonos) nuevo.tonos=tonos;
@@ -3868,6 +3915,8 @@ document.getElementById('editDestacado').checked=!!prod.destacado;
 document.getElementById('editPromo').value=prod.promo||'';
 document.getElementById('editVisible').checked=esVisible(prod);
 syncSwLbl('editVisible','editVisibleLbl');
+document.getElementById('editAgotado').checked=prod.agotado===true;
+syncAgoLbl('editAgotado','editAgotadoLbl');
 const select=document.getElementById('editCategoria'); select.innerHTML='';
 categorias.forEach(cat=>{ const o=document.createElement('option'); o.value=cat; o.textContent=cat; if(cat===prod.categoria)o.selected=true; select.appendChild(o); });
 imagenesEdicionTemp=[...(prod.imagenes||[])];
@@ -3875,7 +3924,7 @@ if(!imagenesEdicionTemp.length&&prod.img) imagenesEdicionTemp=[prod.img];
 renderListaImagenesEdicion();
 document.getElementById('editUrl').value='';
 const tl=document.getElementById('editTonosList'); tl.innerHTML='';
-(prod.tonos||[]).forEach(t=>addTonoRow('editTonosList', t.n, t.c||'#e8557a', (typeof t.i==='number'&&t.i>=0&&imagenesEdicionTemp[t.i])||''));
+(prod.tonos||[]).forEach(t=>addTonoRow('editTonosList', t.n, t.c||'#e8557a', (typeof t.i==='number'&&t.i>=0&&imagenesEdicionTemp[t.i])||'', t.a===true));
 document.getElementById('editModal').style.display='flex';
 document.body.classList.add('no-scroll');
 const body = document.querySelector('.edit-modal-body');
@@ -3909,6 +3958,7 @@ prod.imagenes=imagenes;
 prod.visible=document.getElementById('editVisible').checked;
 if(descuento>0) prod.descuento=Math.min(90,descuento); else delete prod.descuento;
 prod.destacado=document.getElementById('editDestacado').checked;
+if(document.getElementById('editAgotado').checked) prod.agotado=true; else delete prod.agotado;
 const promoTxt=document.getElementById('editPromo').value.trim();
 if(promoTxt) prod.promo=promoTxt; else delete prod.promo;
 const tonos=readTonoRows('editTonosList', imagenes);
@@ -4023,6 +4073,7 @@ productoDetalleIndex=index;
 const imagenes=prod.imagenes&&prod.imagenes.length?prod.imagenes:[obtenerImagenPrincipal(prod)];
 const tonos=tonosDe(prod);
 detalleTonoActual=Math.min(tonoInicial, Math.max(0,tonos.length-1));
+if(tonos.length && !tonoInicial && tonoAgotado(tonos[detalleTonoActual])) detalleTonoActual=primerTonoDisponible(prod);
 if(tonos.length && tonoTieneImagenValida(prod, tonos[detalleTonoActual])){
 detalleImagenActual = tonos[detalleTonoActual].i;
 }else{
@@ -4068,21 +4119,35 @@ t.onclick=()=>irImagenDetalle(i);
 thumbs.appendChild(t);
 });
 }
+function actualizarBotonAgregar(){
+const btn=document.getElementById('detailAddBtn'); if(btn===null) return;
+const prod=productos[productoDetalleIndex]; if(!prod) return;
+const tonos=tonosDe(prod);
+const t=tonos.length?tonos[detalleTonoActual]:null;
+const prodAgotado=estaAgotado(prod);
+const agot=prodAgotado||tonoAgotado(t);
+btn.disabled=agot;
+btn.classList.toggle('agotado',agot);
+const txt=btn.querySelector('.add-txt');
+if(txt) txt.textContent = !agot ? 'Agregar al Carrito' : (prodAgotado ? 'Producto agotado' : 'Tono agotado');
+const et=document.getElementById('detailTonoName');
+if(et&&t) et.innerHTML=esc(t.n)+(tonoAgotado(t)?' <span class="tono-ago-lbl">· Agotado</span>':'');
+}
 function renderTonosDetalle(prod){
 const wrap=document.getElementById('detailTonosWrap'), list=document.getElementById('detailTonos');
 const tonos=tonosDe(prod);
-if(!tonos.length){ wrap.style.display='none'; return; }
+if(!tonos.length){ wrap.style.display='none'; actualizarBotonAgregar(); return; }
 wrap.style.display='block';
 list.innerHTML='';
 tonos.forEach((t,i)=>{
 const b=document.createElement('button');
-b.className='tono-swatch'+(i===detalleTonoActual?' active':'');
-b.title=t.n; b.type='button';
+b.className='tono-swatch'+(i===detalleTonoActual?' active':'')+(tonoAgotado(t)?' agotado':'');
+b.title=t.n+(tonoAgotado(t)?' (agotado)':''); b.type='button';
 b.style.background = t.c || '#cccccc';
 b.onclick=()=>seleccionarTono(i);
 list.appendChild(b);
 });
-document.getElementById('detailTonoName').textContent=tonos[detalleTonoActual].n;
+actualizarBotonAgregar();
 }
 function seleccionarTono(i){
 if(productoDetalleIndex===null) return;
@@ -4094,7 +4159,7 @@ if(tonoTieneImagenValida(prod, tonos[i])){
 detalleImagenActual = tonos[i].i;
 actualizarVistaDetalle();
 }
-document.getElementById('detailTonoName').textContent = tonos[i].n;
+actualizarBotonAgregar();
 const list=document.getElementById('detailTonos');
 list.querySelectorAll('.tono-swatch').forEach((sw,idx)=>sw.classList.toggle('active', idx===i));
 }
@@ -4150,6 +4215,7 @@ actualizarCarrito(); bumpCart();
 }
 function agregarAlCarroYAbrir(i, qty=1){
 const p=productos[i];
+if(estaAgotado(p)){ showToast('Este producto está agotado','warning'); return; }
 const tonos=tonosDe(p);
 if(tonos.length){
 abrirDetalle(i);
@@ -4164,6 +4230,8 @@ function agregarDesdeDetalle(){
 if(productoDetalleIndex===null) return;
 const prod=productos[productoDetalleIndex];
 const tonos=tonosDe(prod);
+if(estaAgotado(prod)){ showToast('Este producto está agotado','warning'); return; }
+if(tonos.length && tonoAgotado(tonos[detalleTonoActual])){ showToast('Ese tono está agotado. Elige otro.','warning'); return; }
 let tonoIdx=null;
 if(tonos.length){
 tonoIdx = detalleTonoActual;
@@ -4232,6 +4300,17 @@ row.innerHTML=`
 <label class="switch"><input type="checkbox" ${p.destacado?'checked':''} onchange="toggleDestacado(${i},this.checked)"><span class="switch-slider"></span></label>`;
 cont.appendChild(row);
 });
+}
+function cambiarAgotado(i,val){
+if(val) productos[i].agotado=true; else delete productos[i].agotado;
+if(val){
+const idp=productos[i].id;
+const antes=carrito.length;
+carrito=carrito.filter(r=>r.id!==idp);
+if(carrito.length!==antes) actualizarCarrito();
+}
+refreshPublic(); refreshAdminViews(); saveFlags();
+showToast(val?('"'+(productos[i].nombre||'Producto')+'" quedó marcado como AGOTADO'):'Producto disponible de nuevo', val?'warning':'success');
 }
 function toggleDestacado(i,val){
 productos[i].destacado=val;
@@ -4365,7 +4444,7 @@ if(catSel && catSel.options.length === 0){
 catSel.innerHTML = '<option value="">Todas las categorías</option>' + categorias.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
 }
 if(!productos||!productos.length){
-tbody.innerHTML='<tr><td colspan="6" style="padding:18px;text-align:center;color:#64748b;">No hay productos.</td></tr>';
+tbody.innerHTML='<tr><td colspan="7" style="padding:18px;text-align:center;color:#64748b;">No hay productos.</td></tr>';
 const lbl = document.getElementById('invCountLabel'); if(lbl) lbl.textContent = '0 productos';
 invIndicesFiltrados = [];
 renderPaginacionInventario();
@@ -4387,6 +4466,7 @@ const vis=esVisible(p);
 let ok=true;
 if(invFiltro==='visibles') ok=vis;
 else if(invFiltro==='ocultos') ok=!vis;
+else if(invFiltro==='agotados') ok=estaAgotado(p);
 else if(invFiltro==='destacados') ok=!!p.destacado;
 else if(invFiltro==='no-destacados') ok=!p.destacado;
 else if(invFiltro==='con-promo') ok=!!(p.promo && p.promo.trim());
@@ -4417,11 +4497,12 @@ html+=`<tr id="row-${i}" data-idx="${i}">
 <td style="font-weight:500;white-space:nowrap;">${formatearPrecio(p.precio)}</td>
 <td><div class="sw-cell">${switchHtml(vis,`cambiarVisible(${i},this.checked)`)}<span class="sw-lbl ${vis?'on':'off'}">${vis?'ON':'OFF'}</span></div></td>
 <td><div class="sw-cell">${switchHtml(!!p.destacado,`toggleDestacado(${i},this.checked)`)}<span class="sw-lbl ${p.destacado?'on':'off'}">${p.destacado?'ON':'OFF'}</span></div></td>
+<td><div class="sw-cell">${switchHtml(p.agotado===true,`cambiarAgotado(${i},this.checked)`)}<span class="sw-lbl ${estaAgotado(p)?'off':'on'}" title="${estaAgotado(p)&&p.agotado!==true?'Todos sus tonos están agotados':''}">${p.agotado===true?'AGOTADO':(estaAgotado(p)?'POR TONOS':'HAY')}</span></div></td>
 <td style="white-space:nowrap;"><button class="btn-action edit" onclick="abrirModalEdicion(${i})">✏️ Editar</button><button class="btn-action delete" onclick="eliminarProducto(${i})">🗑️ Eliminar</button></td>
 </tr>`;
 }
 if(!paginaActual.length){
-html = `<tr><td colspan="6" style="padding:18px;text-align:center;color:#64748b;">No hay productos que coincidan con los filtros.</td></tr>`;
+html = `<tr><td colspan="7" style="padding:18px;text-align:center;color:#64748b;">No hay productos que coincidan con los filtros.</td></tr>`;
 }
 tbody.innerHTML=html;
 const lbl = document.getElementById('invCountLabel');
