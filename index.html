@@ -783,6 +783,12 @@ color:var(--divani-on-primary);box-shadow:0 12px 28px color-mix(in srgb,var(--di
 .detail-add.agotado:hover,.detail-add:disabled:hover{background:#9ca3af;transform:none}
 .tono-ago{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none}
 .tono-ago input{width:15px;height:15px;accent-color:#6b7280;cursor:pointer}
+.cat-btn{position:absolute;top:5px;border:none;width:21px;height:21px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:transform .15s}
+.cat-btn:hover{transform:scale(1.15)}
+.cat-ren{left:5px;background:var(--gray-light);color:var(--divani-text)}
+.cat-del{right:5px;background:var(--danger);color:#fff}
+.cat-nombre{min-height:19px;padding:0 16px;word-break:break-word}
+.cat-input{width:100%;box-sizing:border-box;text-align:center;font-weight:500;font-size:13px;font-family:inherit;padding:3px 6px;border:1.5px solid var(--divani-primary);border-radius:8px;outline:none;background:#fff;color:var(--divani-text)}
 @media(max-width:900px){.admin-content{grid-template-columns:1fr;height:auto;max-height:100dvh}.admin-sidebar{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:12px;gap:6px;border-bottom:1px solid var(--gray-border)}.admin-brand{display:none}.admin-nav-menu{flex-direction:row;gap:6px}.admin-nav-item{white-space:nowrap;font-size:12px;padding:9px 12px}.admin-nav-item .nav-ico{width:22px;height:22px;font-size:12px}}
 @media(max-width:640px){.admin-content{border-radius:var(--radius-lg);height:100dvh}.admin-body{padding:14px 12px}.dashboard-card{padding:16px 14px}.stats-grid{grid-template-columns:repeat(2,1fr)}.dup-items{grid-template-columns:1fr}}
 </style>
@@ -1418,7 +1424,7 @@ Llenar
 <button class="sync-btn primary" style="width:auto;padding:11px 20px;margin:0;" onclick="agregarCategoria()">✨ Crear</button>
 </div>
 </div>
-<div class="dashboard-card"><h4>🏷️ Categorías existentes</h4><p style="font-size:12.5px;color:#64748b;margin:-6px 0 14px;">Solo puedes eliminar categorías sin productos.</p><div id="categoriasGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;"></div></div>
+<div class="dashboard-card"><h4>🏷️ Categorías existentes</h4><p style="font-size:12.5px;color:#64748b;margin:-6px 0 14px;">Toca ✏️ para cambiarle el nombre: los productos de esa categoría se actualizan solos. Si le pones el nombre de otra categoría que ya existe, te pregunta si quieres unirlas. Con ✕ se elimina, y solo si no tiene productos.</p><div id="categoriasGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;"></div></div>
 </div>
 <div id="tab-personaliza" class="admin-view">
 <div class="dashboard-card">
@@ -3762,7 +3768,8 @@ categorias.forEach((c,i)=>{
 const count=productos.filter(p=>p.categoria===c).length;
 const card=document.createElement('div');
 card.style.cssText='background:#f8fafc;border:2px solid var(--gray-border);border-radius:12px;padding:14px;text-align:center;position:relative;';
-card.innerHTML=`<button onclick="eliminarCategoria(${i})" title="Eliminar" style="position:absolute;top:5px;right:5px;background:var(--danger);color:white;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;">✕</button><div style="font-weight:500;">${esc(c)}</div><div style="font-size:11px;color:#64748b;">${count} prod.</div>`;
+card.id='catCard-'+i;
+card.innerHTML=`<button class="cat-btn cat-ren" onclick="renombrarCategoria(${i})" title="Cambiar el nombre" aria-label="Cambiar el nombre de ${esc(c)}">✏️</button><button class="cat-btn cat-del" onclick="eliminarCategoria(${i})" title="Eliminar" aria-label="Eliminar ${esc(c)}">✕</button><div class="cat-nombre" style="font-weight:500;">${esc(c)}</div><div style="font-size:11px;color:#64748b;">${count} prod.</div>`;
 grid.appendChild(card);
 });
 }
@@ -3795,19 +3802,73 @@ window.addEventListener('pointerup',()=>{ if(!down) return; down=false; n.classL
 n.addEventListener('click',e=>{ if(moved){ e.preventDefault(); e.stopPropagation(); moved=false; } },true);
 }
 }
+function _refrescarCategorias(){
+ordenarCategorias();
+renderSelectCategorias(); renderSelectCategoriasBanner(); renderCategoriasAdmin();
+renderNavCategorias(); renderDashboard();
+if(typeof prepararCacheBusqueda==='function') prepararCacheBusqueda();
+if(typeof refreshPublic==='function') refreshPublic();
+programarSyncNube();
+}
+function renombrarCategoria(i){
+const card=document.getElementById('catCard-'+i); if(!card) return;
+const cont=card.querySelector('.cat-nombre'); if(!cont) return;
+if(card.dataset.editando==='1') return;
+card.dataset.editando='1';
+cont.innerHTML='';
+const inp=document.createElement('input');
+inp.type='text'; inp.className='cat-input'; inp.value=categorias[i];
+cont.appendChild(inp);
+inp.focus(); inp.select();
+let listo=false;
+const cancelar=()=>{ if(listo) return; listo=true; renderCategoriasAdmin(); };
+const guardar=()=>{ if(listo) return; listo=true; aplicarRenombreCategoria(i, inp.value); };
+inp.addEventListener('keydown',e=>{
+if(e.key==='Enter'){ e.preventDefault(); guardar(); }
+else if(e.key==='Escape'){ e.preventDefault(); cancelar(); }
+});
+inp.addEventListener('blur', guardar);
+}
+function aplicarRenombreCategoria(i, valor){
+const viejo=categorias[i];
+if(viejo===undefined) return;
+const nuevo=String(valor==null?'':valor).trim().replace(/\s+/g,' ');
+if(!nuevo){ showToast('El nombre no puede quedar vacío','danger'); renderCategoriasAdmin(); return; }
+if(nuevo===viejo){ renderCategoriasAdmin(); return; }
+const cuantos=productos.filter(p=>p.categoria===viejo).length;
+const otro=categorias.findIndex((c,k)=>k!==i && String(c).toLowerCase()===nuevo.toLowerCase());
+const _banners=(typeof banners!=='undefined'&&Array.isArray(banners))?banners:[];
+if(otro>=0){
+const destino=categorias[otro];
+if(!confirm('Ya existe la categoría "'+destino+'".\n\n¿Unir "'+viejo+'" con ella?\nSus '+cuantos+' producto(s) pasarán a "'+destino+'" y la categoría "'+viejo+'" desaparece.')){ renderCategoriasAdmin(); return; }
+productos.forEach(p=>{ if(p.categoria===viejo) p.categoria=destino; });
+_banners.forEach(b=>{ if(b && b.cat===viejo) b.cat=destino; });
+if(categoriaActual===viejo) categoriaActual=destino;
+categorias.splice(i,1);
+_refrescarCategorias();
+showToast('"'+viejo+'" se unió con "'+destino+'" · '+cuantos+' producto(s) movidos','success');
+return;
+}
+productos.forEach(p=>{ if(p.categoria===viejo) p.categoria=nuevo; });
+_banners.forEach(b=>{ if(b && b.cat===viejo) b.cat=nuevo; });
+if(categoriaActual===viejo) categoriaActual=nuevo;
+categorias[i]=nuevo;
+_refrescarCategorias();
+showToast(cuantos?('Ahora se llama "'+nuevo+'" · '+cuantos+' producto(s) actualizados'):('Ahora se llama "'+nuevo+'"'),'success');
+}
 function agregarCategoria(){
 const input=document.getElementById('nuevaCategoriaInput'); const nombre=input.value.trim();
 if(!nombre||categorias.some(c=>c.toLowerCase()===nombre.toLowerCase())){ showToast('Nombre inválido o duplicado','danger'); return; }
-categorias.push(nombre.charAt(0).toUpperCase()+nombre.slice(1).toLowerCase());
-ordenarCategorias();
-input.value=''; renderSelectCategorias(); renderSelectCategoriasBanner(); renderCategoriasAdmin(); renderNavCategorias(); renderDashboard();
+categorias.push(nombre.replace(/\s+/g,' '));
+input.value='';
+_refrescarCategorias();
 showToast('Categoría creada','success');
-programarSyncNube();
 }
 function eliminarCategoria(i){
 const c=categorias[i];
-if(productos.some(p=>p.categoria===c)){ showToast('Tiene productos asignados','danger'); return; }
-if(confirm(`¿Eliminar "${c}"?`)){ categorias.splice(i,1); renderSelectCategorias(); renderSelectCategoriasBanner(); renderCategoriasAdmin(); renderNavCategorias(); renderDashboard(); programarSyncNube(); }
+const n=productos.filter(p=>p.categoria===c).length;
+if(n){ showToast('"'+c+'" tiene '+n+' producto(s). Para quitarla, tócale ✏️ y ponle el nombre de la categoría donde deben quedar.','warning'); return; }
+if(confirm('¿Eliminar "'+c+'"?')){ categorias.splice(i,1); _refrescarCategorias(); }
 }
 let _vistaAntesBusqueda=null;
 function restaurarTituloCatalogo(){
