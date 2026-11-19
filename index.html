@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://cdn.jsdelivr.net https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.imgbb.com https://cdn.sheetjs.com https://firebasestorage.googleapis.com; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://cdn.jsdelivr.net https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.imgbb.com https://cdn.sheetjs.com https://firebasestorage.googleapis.com https://api.cloudinary.com; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
 <meta name="theme-color" content="#e8557a">
@@ -1381,15 +1381,26 @@ Llenar
 <input type="password" id="nubeImgbbKey" autocomplete="off" placeholder="Pega aquí tu API key de ImgBB (32 caracteres)">
 <small>Se guarda de forma privada en la base de datos (solo tú puedes leerla) y se carga al iniciar sesión. Créala gratis en <a href="https://api.imgbb.com/" target="_blank" rel="noopener">api.imgbb.com</a>.</small>
 </div>
-<div class="estado-box">
-<div class="estado-txt"><b>Guardar las fotos nuevas en Firebase Storage</b><small>ON: las fotos van a tu propio Firebase · OFF: van a ImgBB. Las fotos que ya están publicadas no se mueven.</small></div>
-<label class="switch"><input type="checkbox" id="nubeUsarStorage"><span class="switch-slider"></span></label>
+<div class="form-group"><label>📷 ¿Dónde se guardan las fotos nuevas?</label>
+<select id="nubeDestinoFotos" onchange="syncDestinoUI()" style="width:100%;padding:11px 12px;border:1.5px solid var(--gray-border);border-radius:10px;background:#fff;font-size:13px;">
+<option value="imgbb">ImgBB</option>
+<option value="cloudinary">Cloudinary</option>
+<option value="firebase">Firebase Storage</option>
+</select>
+<small>Las fotos que ya están publicadas <b>no se mueven</b>: solo cambia dónde se guardan las nuevas. Si el destino elegido falla y hay clave de ImgBB, la foto se sube a ImgBB para que la tienda nunca se quede sin publicar.</small>
 </div>
-<div class="form-group"><label>🗄️ Depósito de Firebase Storage</label>
+<div id="cajaCloudinary" class="form-group" style="display:none;">
+<label>☁️ Cloudinary</label>
+<input type="text" id="nubeCloudName" autocomplete="off" placeholder="Nombre de la nube (cloud name)" style="margin-bottom:8px;">
+<input type="text" id="nubeCloudPreset" autocomplete="off" placeholder="Preset de subida sin firma (unsigned)">
+<small>Los dos salen de tu panel de Cloudinary: el <b>cloud name</b> arriba del tablero, y el <b>preset</b> en Settings → Upload → Upload presets, creado en modo <b>Unsigned</b>.</small>
+</div>
+<div id="cajaStorage" class="form-group" style="display:none;">
+<label>🗄️ Depósito de Firebase Storage</label>
 <input type="text" id="nubeStorageBucket" autocomplete="off" placeholder="mi-proyecto.firebasestorage.app">
-<small>Lo encuentras en Firebase → Storage, arriba del listado (empieza por <b>gs://</b>; copia lo que va después). Si lo dejas vacío se usa <b id="nubeBucketAuto">—</b>.</small>
+<small>Firebase → Storage, arriba del listado (empieza por <b>gs://</b>; copia lo que va después). Vacío = <b id="nubeBucketAuto">—</b>. Requiere plan Blaze.</small>
 </div>
-<button class="sync-btn secondary" style="width:auto;margin:0 0 14px;padding:10px 16px;" onclick="probarStorage()">🧪 Probar Storage</button>
+<button class="sync-btn secondary" style="width:auto;margin:0 0 14px;padding:10px 16px;" onclick="probarDestinoFotos()">🧪 Probar subida</button>
 <div class="form-group"><label>️ URL de la base de datos (Firebase Realtime Database)</label>
 <input type="text" id="nubeDbUrl" placeholder="https://tu-proyecto-default-rtdb.firebaseio.com">
 <small>Base de datos conectada. Solo se puede modificar con una sesión de administradora iniciada.</small>
@@ -1728,7 +1739,7 @@ const CLOUD_CONFIG = {
   // Base de datos pública de lectura (la tienda lee de aquí). Escribir exige iniciar sesión.
   DATABASE_URL: 'https://divani-1ab68-default-rtdb.firebaseio.com',
   // Clave WEB de Firebase (no es secreta: solo identifica el proyecto). La seguridad real está en las reglas.
-  FIREBASE_API_KEY: 'AIzaSyAMvgRGpgE-RgewivPbfHyNi8nU7tdrzP8',
+  FIREBASE_API_KEY: 'AIzaSyAMvgRGpgE-RgewivPbfHyNi8nU7tdrzP8Y',
   AUTH_URL: 'https://identitytoolkit.googleapis.com/v1/',
   TOKEN_URL: 'https://securetoken.googleapis.com/v1/token',
   // Correo(s) autorizados como administradora (las reglas de Firebase validan lo mismo en el servidor)
@@ -1812,10 +1823,14 @@ const CLOUD = {
 imgbbKey: '',   // se descarga de la base de datos solo cuando la administradora inicia sesión
 dbUrl: _limpiarClave(CLOUD_CONFIG.DATABASE_URL),
 autoSync: false, // se activa al iniciar sesión
-storageBucket: '', // depósito de Firebase Storage (si está vacío se deduce de dbUrl)
-usarStorage: false // ON: las fotos nuevas se guardan en Firebase Storage en vez de ImgBB
+destinoFotos: '',      // 'imgbb' | 'cloudinary' | 'firebase'
+cloudinaryCloud: '',   // nombre de la nube en Cloudinary
+cloudinaryPreset: '',  // preset de subida SIN firma
+storageBucket: '',     // depósito de Firebase Storage (vacío = se deduce de dbUrl)
+usarStorage: false     // ajuste de la versión anterior; se respeta si aún está guardado
 };
 const STORAGE_API = 'https://firebasestorage.googleapis.com/v0/b/';
+const CLOUDINARY_API = 'https://api.cloudinary.com/v1_1/';
 function bucketPorDefecto(){
 try{
 const h = new URL(CLOUD.dbUrl).hostname;              // divani-xxxx-default-rtdb.firebaseio.com
@@ -1824,14 +1839,60 @@ return p ? p + '.firebasestorage.app' : '';
 }catch(e){ return ''; }
 }
 function bucketActivo(){ return String(CLOUD.storageBucket||'').trim() || bucketPorDefecto(); }
-function hayDondeSubirFotos(){ return !!CLOUD.imgbbKey || !!(CLOUD.usarStorage && bucketActivo()); }
-const AVISO_SIN_DESTINO = '⚠️ Falta indicar dónde guardar las fotos. Ve a ☁️ Nube: activa Firebase Storage o pega la API key de ImgBB.';
+function destinoFotos(){
+const d = CLOUD.destinoFotos;
+if(d==='imgbb' || d==='cloudinary' || d==='firebase') return d;
+return CLOUD.usarStorage ? 'firebase' : 'imgbb';
+}
+function nombreDestino(d){
+d = d || destinoFotos();
+return d==='cloudinary' ? 'Cloudinary' : (d==='firebase' ? 'Firebase Storage' : 'ImgBB');
+}
+function destinoListo(d){
+d = d || destinoFotos();
+if(d==='cloudinary') return !!(String(CLOUD.cloudinaryCloud||'').trim() && String(CLOUD.cloudinaryPreset||'').trim());
+if(d==='firebase') return !!bucketActivo();
+return !!CLOUD.imgbbKey;
+}
+function _extDe(blob){ return blob && blob.type==='image/webp' ? 'webp' : (blob && blob.type==='image/png' ? 'png' : 'jpg'); }
+async function subirImagenCloudinary(blob){
+const cloud = String(CLOUD.cloudinaryCloud||'').trim();
+const preset = String(CLOUD.cloudinaryPreset||'').trim();
+if(!cloud || !preset) throw new Error('faltan el nombre de la nube o el preset de Cloudinary');
+const fd = new FormData();
+fd.append('file', blob, 'divani_' + Date.now() + '.' + _extDe(blob));
+fd.append('upload_preset', preset);
+let motivo='';
+for(let intento=1; intento<=3; intento++){
+const ctl=(typeof AbortController!=='undefined')?new AbortController():null;
+const reloj=ctl?setTimeout(()=>ctl.abort(),60000):null;
+try{
+const opc={method:'POST', body:fd};
+if(ctl) opc.signal=ctl.signal;
+const r = await fetch(CLOUDINARY_API + encodeURIComponent(cloud) + '/image/upload', opc);
+if(reloj) clearTimeout(reloj);
+const j = await r.json().catch(()=>null);
+if(r.ok && j && (j.secure_url || j.url)) return j.secure_url || j.url;
+motivo = (j && j.error && (j.error.message || j.error)) || ('Cloudinary respondió ' + r.status);
+if(/preset/i.test(motivo)) motivo = 'el preset "' + preset + '" no existe o no está como "Unsigned" en Cloudinary';
+else if(/cloud|not found/i.test(motivo) || r.status===404) motivo = 'no se encontró la nube "' + cloud + '" en Cloudinary';
+else if(/rate|too many/i.test(motivo)) motivo = 'Cloudinary no acepta más subidas por ahora (límite de la cuenta)';
+if(r.status===400 || r.status===401 || r.status===403 || r.status===404) break;
+}catch(e){
+if(reloj) clearTimeout(reloj);
+motivo = (e && e.name==='AbortError') ? 'la subida tardó más de 60 segundos' : 'no hubo conexión con Cloudinary';
+}
+if(intento<3) await new Promise(r=>setTimeout(r,1200*intento));
+}
+throw new Error(motivo||'no se pudo subir a Cloudinary');
+}
+function hayDondeSubirFotos(){ return destinoListo() || !!CLOUD.imgbbKey; }
+const AVISO_SIN_DESTINO = '⚠️ Falta indicar dónde guardar las fotos. Ve a ☁️ Nube y configura el destino (ImgBB, Cloudinary o Firebase Storage).';
 async function subirImagenStorage(blob){
 const bucket = bucketActivo();
 if(!bucket) throw new Error('falta el depósito de Firebase Storage');
 if(!AUTH.activa) throw new Error('hay que iniciar sesión como administradora');
-const ext = blob.type==='image/webp'?'webp':(blob.type==='image/png'?'png':'jpg');
-const ruta = 'productos/' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+const ruta = 'productos/' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8) + '.' + _extDe(blob);
 let motivo='';
 for(let intento=1; intento<=3; intento++){
 const ctl=(typeof AbortController!=='undefined')?new AbortController():null;
@@ -1859,39 +1920,49 @@ if(intento<3) await new Promise(r=>setTimeout(r,1200*intento));
 }
 throw new Error(motivo||'no se pudo subir a Firebase');
 }
-let _usoRespaldoImgBB=false;
+let _usoRespaldoImgBB='';
 async function subirImagen(blob){
-if(CLOUD.usarStorage && bucketActivo()){
-try{ return await subirImagenStorage(blob); }
+const d = destinoFotos();
+if(d!=='imgbb' && destinoListo(d)){
+try{ return d==='cloudinary' ? await subirImagenCloudinary(blob) : await subirImagenStorage(blob); }
 catch(e){
 if(!CLOUD.imgbbKey) throw e;
-console.warn('[DIVANI] Storage falló, se usa ImgBB de respaldo:', e.message);
+console.warn('[DIVANI] ' + nombreDestino(d) + ' falló, se usa ImgBB de respaldo:', e.message);
 const u = await subirImagenImgBB(blob);
-_usoRespaldoImgBB = true;
+_usoRespaldoImgBB = nombreDestino(d);
 return u;
 }
 }
 return await subirImagenImgBB(blob);
 }
-async function probarStorage(){
-const bucket = bucketActivo();
-if(!bucket){ showToast('Falta el nombre del depósito','warning'); return; }
-if(!AUTH.activa){ showToast('Inicia sesión como administradora','danger'); return; }
-showToast('Probando Firebase Storage…','success');
+async function probarDestinoFotos(){
+const d = destinoFotos();
+if(!destinoListo(d)){ showToast('Faltan datos de ' + nombreDestino(d) + ' en esta pestaña','warning'); return; }
+if(d==='firebase' && !AUTH.activa){ showToast('Inicia sesión como administradora','danger'); return; }
+showToast('Probando ' + nombreDestino(d) + '…','success');
 try{
 const cv=document.createElement('canvas'); cv.width=cv.height=8;
 const cx=cv.getContext('2d'); cx.fillStyle='#e8557a'; cx.fillRect(0,0,8,8);
 const prueba=await new Promise(r=>cv.toBlob(r,'image/png'));
-const url=await subirImagenStorage(prueba);
-const ver=await fetch(url, {cache:'no-store'});
-if(!ver.ok) throw new Error('se subió, pero los clientes no pueden verla (falta "allow read" en las reglas)');
+const url = d==='cloudinary' ? await subirImagenCloudinary(prueba) : await subirImagenStorage(prueba);
+// se comprueba cargándola como <img>, que es justo lo que hará el navegador del cliente
+const seVe = await new Promise((ok)=>{
+const im=new Image(); let listo=false;
+const fin=(v)=>{ if(listo) return; listo=true; ok(v); };
+im.onload=()=>fin(true); im.onerror=()=>fin(false);
+setTimeout(()=>fin(false), 15000);
+im.src = url + (url.indexOf('?')>=0 ? '&' : '?') + 'cb=' + Date.now();
+});
+if(!seVe) throw new Error('se subió, pero los clientes no pueden verla (revisa los permisos de lectura)');
+if(d==='firebase'){
 try{
 const tk=await AUTH.token();
 const ruta=decodeURIComponent(url.split('/o/')[1].split('?')[0]);
-await fetch(STORAGE_API+encodeURIComponent(bucket)+'/o/'+encodeURIComponent(ruta), {method:'DELETE', headers:{'Authorization':'Firebase '+tk}});
+await fetch(STORAGE_API+encodeURIComponent(bucketActivo())+'/o/'+encodeURIComponent(ruta), {method:'DELETE', headers:{'Authorization':'Firebase '+tk}});
 }catch(e){}
-showToast('✅ Firebase Storage funciona: sube y se ve. Depósito: '+bucket,'success');
-}catch(e){ showToast('❌ Firebase Storage: '+e.message,'danger'); }
+}
+showToast('✅ ' + nombreDestino(d) + ' funciona: sube y se ve.' + (d==='cloudinary' ? ' Quedó una imagen diminuta de prueba que puedes borrar.' : ''),'success');
+}catch(e){ showToast('❌ ' + nombreDestino(d) + ': ' + e.message,'danger'); }
 }
 
 const IMG = {
@@ -2595,8 +2666,8 @@ async function procesarArchivosImagen(files){
     if(_faltan>0) showToast('Quedaron '+_faltan+' foto(s) sin intentar.','warning');
   }
   if(_usoRespaldoImgBB){
-    _usoRespaldoImgBB=false;
-    showToast('⚠️ Firebase Storage falló; esas fotos se subieron a ImgBB. Revisa ☁️ Nube → Probar Storage.','warning');
+    const _d=_usoRespaldoImgBB; _usoRespaldoImgBB='';
+    showToast('⚠️ '+_d+' falló; esas fotos se subieron a ImgBB. Revisa ☁️ Nube → Probar.','warning');
   }
   if(fallidas.length){
     console.warn('[DIVANI] fotos que no se pudieron subir:', fallidas);
@@ -2622,6 +2693,9 @@ async function cargarConfigAdmin(){
       const v = await r.json();
       const cfg = (v && typeof v==='object') ? v : {};
       CLOUD.imgbbKey = (typeof cfg.imgbbKey==='string') ? _limpiarClave(cfg.imgbbKey) : '';
+      CLOUD.destinoFotos = (typeof cfg.destinoFotos==='string') ? cfg.destinoFotos : '';
+      CLOUD.cloudinaryCloud = (typeof cfg.cloudinaryCloud==='string') ? cfg.cloudinaryCloud.trim() : '';
+      CLOUD.cloudinaryPreset = (typeof cfg.cloudinaryPreset==='string') ? cfg.cloudinaryPreset.trim() : '';
       CLOUD.storageBucket = (typeof cfg.storageBucket==='string') ? cfg.storageBucket.trim() : '';
       CLOUD.usarStorage = cfg.usarStorage===true;
     }
@@ -2631,24 +2705,27 @@ async function guardarCredencialesNube(){
   if(!AUTH.activa){ showToast('Inicia sesión como administradora','danger'); return; }
   const k=_limpiarClave(document.getElementById('nubeImgbbKey').value);
   const quiereAuto = document.getElementById('nubeAutoSync').checked;
-  const _sb=document.getElementById('nubeStorageBucket');
-  const _su=document.getElementById('nubeUsarStorage');
-  const bucketTxt=(_sb?_sb.value:'').trim().replace(/^gs:\/\//i,'').replace(/\/+$/,'');
-  const usarSt=!!(_su&&_su.checked);
-  if(usarSt && !(bucketTxt||bucketPorDefecto())){ showToast('Escribe el depósito de Storage antes de activarlo','danger'); return; }
+  const _val=(id)=>{ const e=document.getElementById(id); return e ? e.value.trim() : ''; };
+  const destino=_val('nubeDestinoFotos')||'imgbb';
+  const cloudN=_val('nubeCloudName').replace(/^https?:\/\//i,'').replace(/\/+$/,'');
+  const cloudP=_val('nubeCloudPreset');
+  const bucketTxt=_val('nubeStorageBucket').replace(/^gs:\/\//i,'').replace(/\/+$/,'');
+  if(destino==='cloudinary' && !(cloudN && cloudP)){ showToast('Escribe el nombre de la nube y el preset de Cloudinary','danger'); return; }
+  if(destino==='firebase' && !(bucketTxt||bucketPorDefecto())){ showToast('Escribe el depósito de Firebase Storage','danger'); return; }
+  if(destino==='imgbb' && !(k||CLOUD.imgbbKey)){ showToast('Pega la API key de ImgBB','danger'); return; }
   try{
-    const cambios={};
+    const cambios={destinoFotos:destino, cloudinaryCloud:cloudN, cloudinaryPreset:cloudP, storageBucket:bucketTxt};
     if(k) cambios.imgbbKey=k;
-    cambios.storageBucket=bucketTxt;
-    cambios.usarStorage=usarSt;
     {
       const tk = await AUTH.token();
       const r = await fetch(CLOUD.dbUrl.replace(/\/+$/,'')+'/divaniConfig.json?auth='+encodeURIComponent(tk), {
         method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cambios) });
       if(!r.ok) throw new Error('HTTP '+r.status);
       if(k) CLOUD.imgbbKey = k;
+      CLOUD.destinoFotos = destino;
+      CLOUD.cloudinaryCloud = cloudN;
+      CLOUD.cloudinaryPreset = cloudP;
       CLOUD.storageBucket = bucketTxt;
-      CLOUD.usarStorage = usarSt;
     }
     CLOUD.autoSync = quiereAuto;
     syncNubeUI();
@@ -2658,21 +2735,30 @@ async function guardarCredencialesNube(){
 function guardarCredencialesNubeSilencioso(){
   const a=document.getElementById('nubeAutoSync'); if(a) CLOUD.autoSync = !!a.checked && AUTH.activa;
 }
+function syncDestinoUI(){
+const dd=document.getElementById('nubeDestinoFotos'); if(!dd) return;
+const d=dd.value;
+const c=document.getElementById('cajaCloudinary'); if(c) c.style.display = d==='cloudinary' ? '' : 'none';
+const s=document.getElementById('cajaStorage'); if(s) s.style.display = d==='firebase' ? '' : 'none';
+}
 function syncNubeUI(){
 
 const k=document.getElementById('nubeImgbbKey'); if(k) k.value=CLOUD.imgbbKey;
 const u=document.getElementById('nubeDbUrl'); if(u){ u.value=CLOUD.dbUrl; u.readOnly=true; }
 const a=document.getElementById('nubeAutoSync'); if(a) { a.checked=CLOUD.autoSync; a.disabled = !AUTH.activa; }
+const dd=document.getElementById('nubeDestinoFotos'); if(dd){ dd.value=destinoFotos(); dd.disabled=!AUTH.activa; }
+const cn=document.getElementById('nubeCloudName'); if(cn) cn.value=CLOUD.cloudinaryCloud||'';
+const cp=document.getElementById('nubeCloudPreset'); if(cp) cp.value=CLOUD.cloudinaryPreset||'';
 const sb=document.getElementById('nubeStorageBucket'); if(sb) sb.value=CLOUD.storageBucket||'';
-const su=document.getElementById('nubeUsarStorage'); if(su){ su.checked=CLOUD.usarStorage; su.disabled=!AUTH.activa; }
 const ba=document.getElementById('nubeBucketAuto'); if(ba) ba.textContent=bucketPorDefecto()||'(no se pudo deducir)';
+syncDestinoUI();
 const st=document.getElementById('nubeStatus');
 if(st){
 const last=localStorage.getItem('divani_last_sync');
 const pill=(on,txt)=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;letter-spacing:.4px;padding:5px 11px;border-radius:999px;
 background:${on?'#e7f8f1':'#f1f5f9'};color:${on?'#0f9d8f':'#94a3b8'};border:1px solid ${on?'#9be3c6':'#e2e8f0'};">${txt}</span>`;
 st.innerHTML=
-pill(CLOUD.usarStorage,'🗄️ Fotos en '+(CLOUD.usarStorage?('Firebase ('+bucketActivo()+')'):'ImgBB'))+
+pill(destinoListo(),'📷 Fotos en '+nombreDestino()+(destinoListo()?'':' (falta configurarlo)'))+
 pill(!!CLOUD.imgbbKey,'🔑 ImgBB '+(CLOUD.imgbbKey?'conectado':'sin configurar'))+
 pill(!!CLOUD.dbUrl,'️ Base de datos '+(CLOUD.dbUrl?'conectada':'sin configurar'))+
 pill(CLOUD.autoSync,'🔄 Auto-sync '+(CLOUD.autoSync?'activo':'inactivo'))+
