@@ -2423,36 +2423,67 @@ else if(typeof source==='string'&&source.startsWith('data:')) blob=dataUrlABlob(
 if(!blob) throw new Error('Imagen no válida');
 const fd=new FormData();
 fd.append('image', blob, 'divani_'+Date.now()+'.'+(blob.type==='image/webp'?'webp':blob.type==='image/png'?'png':'jpg'));
-const res=await fetch('https://api.imgbb.com/1/upload?key='+encodeURIComponent(CLOUD.imgbbKey), {method:'POST', body:fd});
+let motivo='';
+for(let intento=1; intento<=3; intento++){
+const ctl=(typeof AbortController!=='undefined')?new AbortController():null;
+const reloj=ctl?setTimeout(()=>ctl.abort(),45000):null;
+try{
+const res=await fetch('https://api.imgbb.com/1/upload?key='+encodeURIComponent(CLOUD.imgbbKey), ctl?{method:'POST', body:fd, signal:ctl.signal}:{method:'POST', body:fd});
+if(reloj) clearTimeout(reloj);
 const j=await res.json().catch(()=>null);
 if(j && j.success && j.data && j.data.url) return j.data.url;
-throw new Error((j&&j.error&&j.error.message)||'Error HTTP '+res.status);
+motivo=(j&&j.error&&j.error.message)||('ImgBB respondió '+res.status);
+if(res.status===400||res.status===401||res.status===403) break;   // la clave está mal: no sirve reintentar
+}catch(e){
+if(reloj) clearTimeout(reloj);
+motivo=(e&&e.name==='AbortError')?'la subida tardó más de 45 segundos':'no hubo conexión con ImgBB';
+}
+if(intento<3) await new Promise(r=>setTimeout(r,1200*intento));
+}
+throw new Error(motivo||'no se pudo subir');
 }
 function archivoADataUrl(f){
 return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>res(null); r.readAsDataURL(f); });
 }
 // Reduce la foto (máx. 800 px, WebP) ANTES de subirla: pesa ~50-120 KB en vez de varios MB
 async function comprimirImagen(file, maxPx=800, calidad=0.82){
-  let src, w, h;
-  try{ src = await createImageBitmap(file); w = src.width; h = src.height; }
-  catch(e){
+  let src=null, w=0, h=0;
+  if(typeof createImageBitmap==='function'){
+    try{ src = await createImageBitmap(file); }
+    catch(e1){
+      // el celular no pudo con la foto entera: que el navegador la reduzca mientras la lee
+      try{ src = await createImageBitmap(file, {resizeWidth:maxPx, resizeQuality:'high'}); }catch(e2){ src=null; }
+    }
+    if(src){ w=src.width; h=src.height; }
+  }
+  if(!src){
     src = await new Promise((ok,ko)=>{ const im=new Image(); const u=URL.createObjectURL(file);
-      im.onload=()=>{ URL.revokeObjectURL(u); ok(im); }; im.onerror=()=>{ URL.revokeObjectURL(u); ko(new Error('No se pudo leer la imagen')); }; im.src=u; });
+      im.onload=()=>{ URL.revokeObjectURL(u); ok(im); }; im.onerror=()=>{ URL.revokeObjectURL(u); ko(new Error('el teléfono no pudo abrir la foto (formato no admitido o archivo dañado)')); }; im.src=u; });
     w = src.naturalWidth; h = src.naturalHeight;
   }
-  if(!w || !h) throw new Error('Imagen vacía o dañada');
+  if(!w || !h) throw new Error('la foto llegó vacía o dañada');
   const s = Math.min(1, maxPx/Math.max(w,h));
-  const c = document.createElement('canvas'); c.width = Math.round(w*s); c.height = Math.round(h*s);
-  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
-  const toBlob = (type,q)=>new Promise(r=>c.toBlob(r,type,q));
+  const c = document.createElement('canvas'); c.width = Math.max(1,Math.round(w*s)); c.height = Math.max(1,Math.round(h*s));
+  const ctx = c.getContext('2d');
+  if(!ctx) throw new Error('el navegador no dio memoria para procesar la foto');
+  try{ ctx.drawImage(src, 0, 0, c.width, c.height); }
+  catch(e){ throw new Error('el teléfono no pudo procesar una foto tan grande'); }
+  if(src && typeof src.close==='function'){ try{ src.close(); }catch(e){} }
+  const toBlob = (type,q)=>new Promise(r=>{ try{ c.toBlob(r,type,q); }catch(e){ r(null); } });
   let b = await toBlob('image/webp', calidad);
-  if(!b || b.type!=='image/webp') b = await toBlob('image/jpeg', calidad);
-  if(!b) throw new Error('No se pudo procesar la imagen');
+  if(!b || b.type!=='image/webp') b = await toBlob('image/jpeg', calidad);   // iPhone viejo: no sabe grabar WebP
+  if(!b) b = await toBlob('image/png');
+  if(!b) throw new Error('el navegador no pudo convertir la foto');
   return b;
 }
 async function procesarArchivosImagen(files){
-  const valid = Array.from(files).filter(f=>f.type.startsWith('image/')&&f.size<=15*1024*1024);
-  if(!valid.length){ showToast('Sin imágenes válidas (máx. 15MB c/u)','warning'); return []; }
+  const _todas = Array.from(files);
+  const valid = _todas.filter(f=>f.type.startsWith('image/')&&f.size<=15*1024*1024);
+  const _pesadas = _todas.filter(f=>f.type.startsWith('image/')&&f.size>15*1024*1024);
+  const _noImg = _todas.filter(f=>!f.type.startsWith('image/'));
+  if(_pesadas.length) showToast('⚠️ '+_pesadas.length+' foto(s) pesan más de 15 MB y no se subieron: '+_pesadas.map(f=>f.name||'?').join(', '),'warning');
+  if(_noImg.length) showToast('⚠️ '+_noImg.length+' archivo(s) no son imágenes: '+_noImg.map(f=>f.name||'?').join(', '),'warning');
+  if(!valid.length){ if(!_pesadas.length&&!_noImg.length) showToast('No se eligió ninguna imagen','warning'); return []; }
   if(!CLOUD.imgbbKey){
     showToast('⚠️ Falta la API key de ImgBB. Guárdala en ☁️ Nube para poder subir fotos.','danger');
     return [];
@@ -2462,10 +2493,17 @@ async function procesarArchivosImagen(files){
   const fallidas=[];
   for(const f of valid){
     try{ urls.push(await subirImagenImgBB(await comprimirImagen(f, 800))); }
-    catch(e){ fallidas.push(f.name || 'imagen'); }
+    catch(e){ fallidas.push({n:(f.name||'imagen'), r:((e&&e.message)||'error desconocido')}); }
   }
   if(fallidas.length){
-    showToast(`⚠️ ${fallidas.length} imagen(es) no se pudieron subir (${fallidas.join(', ')}). Inténtalo de nuevo.`,'danger');
+    console.warn('[DIVANI] fotos que no se pudieron subir:', fallidas);
+    const _clave = fallidas.some(x=>/api key|api v1|invalid key|clave/i.test(x.r));
+    if(_clave){
+      showToast('⚠️ La clave de ImgBB no sirve. Ve a ☁️ Nube, pega una clave nueva y guarda.','danger');
+    }else{
+      const _det = fallidas.slice(0,2).map(x=>x.n+' → '+x.r).join(' · ');
+      showToast('⚠️ '+fallidas.length+' imagen(es) no se subieron · '+_det+(fallidas.length>2?' · y '+(fallidas.length-2)+' más':''),'danger');
+    }
   }
   return urls;
 }
